@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp,
-  ClipboardList, CreditCard, FilePlus2, FileText, Globe2, LayoutDashboard,
+  ClipboardList, FilePlus2, FileText, Globe2, LayoutDashboard,
   LockKeyhole, LogOut, Package, Plus, Search, Settings2, ShieldCheck,
   ShoppingBag, Users, Wifi, X
 } from "lucide-react";
@@ -353,7 +353,7 @@ function BillModal({ locale, onClose, onSaved }: { locale: Locale; onClose: () =
     setError("");
     setBusy(true);
     try {
-      if (!price.trim()) throw new Error("Enter the item price.");
+      if (lines.some((line) => !line.price.trim())) throw new Error("Enter a price for every item.");
       const invoiceLines: DraftLineInput[] = lines.map((line) => ({
         description: line.description,
         quantity: Number(line.quantity),

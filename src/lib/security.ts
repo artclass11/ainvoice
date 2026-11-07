@@ -28,8 +28,10 @@ async function derivePinHash(pin: string, salt: Uint8Array): Promise<Uint8Array>
     ["deriveBits"]
   );
 
+  const saltBuffer = new ArrayBuffer(salt.byteLength);
+  new Uint8Array(saltBuffer).set(salt);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: saltBuffer, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
     keyMaterial,
     HASH_LENGTH
   );
