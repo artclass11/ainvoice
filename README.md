@@ -10,6 +10,12 @@ AInvoice is an open-source, offline-first billing app for independent shops, ret
 
 AInvoice is licensed under **Apache License 2.0**. You may use it commercially, inspect the source, modify it, redistribute it and build private or public services from it, subject to the license terms. Contributions are made under the same license unless explicitly agreed otherwise. See [LICENSE](./LICENSE) and [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## Project poster
+
+![AInvoice project poster](./assets/ainvoice-project-poster.svg)
+
+Download the [AInvoice project poster (SVG)](./assets/ainvoice-project-poster.svg) or the [high-resolution PNG poster](https://raw.githubusercontent.com/artclass11/ainvoice/main/assets/ainvoice-project-poster.png).
+
 ## Product principles
 
 1. **Start billing immediately** — first-run setup should take minutes, not a training session.

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500" role="img" aria-labelledby="title desc">
+<title id="title">AInvoice — Easy billing. Smarter business.</title>
+<desc id="desc">Open-source offline-first billing app for independent shops, retailers, wholesalers and large dealers. Early-development preview under Apache-2.0.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#070909"/><stop offset=".58" stop-color="#0b1712"/><stop offset="1" stop-color="#060808"/></linearGradient>
+  <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#50df9a" stop-opacity=".28"/><stop offset="1" stop-color="#50df9a" stop-opacity="0"/></linearGradient>
+  <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#1a2020"/><stop offset="1" stop-color="#101515"/></linearGradient>
+  <linearGradient id="green" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#54e39b"/><stop offset="1" stop-color="#a2f2bd"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<rect width="1200" height="1500" fill="url(#bg)"/>
+<ellipse cx="920" cy="550" rx="420" ry="420" fill="url(#glow)" filter="url(#shadow)"/>
+<g transform="translate(68 62)">
+  <rect width="62" height="66" rx="13" fill="#eef5f0"/>
+  <path d="M15 18h32M15 32h27M15 46h22" stroke="#0b1510" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="56" cy="57" r="19" fill="#63e69e" stroke="#08120d" stroke-width="3"/>
+  <path d="m47 57 6 6 12-14" fill="none" stroke="#08120d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="152" y="117" fill="#f3f7f4" font-family="Arial,Helvetica,sans-serif" font-size="61" font-weight="800" letter-spacing="-2">AInvoice</text>
+<text x="156" y="160" fill="#74e6a7" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="2">SIMPLE BILLING  /  OPEN SOURCE</text>
+<rect x="869" y="78" width="263" height="48" rx="24" fill="#142a20" stroke="#426f55"/>
+<text x="1000" y="108" fill="#b2f0c9" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" text-anchor="middle" letter-spacing="1">APACHE-2.0 LICENSE</text>
+<text x="68" y="260" fill="#f3f7f4" font-family="Arial,Helvetica,sans-serif" font-size="65" font-weight="800" letter-spacing="-2">Easy billing.</text>
+<text x="68" y="335" fill="#65e3a0" font-family="Arial,Helvetica,sans-serif" font-size="65" font-weight="800" letter-spacing="-2">Smarter business.</text>
+<text x="70" y="382" fill="#aebbb4" font-family="Arial,Helvetica,sans-serif" font-size="20">For independent shops, retailers, wholesalers and large dealers.</text>
+<!-- product mockup area -->
+<rect x="60" y="425" width="1080" height="565" rx="28" fill="#0b100e" stroke="#3c654e" stroke-width="2"/>
+<rect x="82" y="447" width="275" height="40" rx="20" fill="#0c1711" stroke="#47775a"/>
+<text x="219" y="473" fill="#c3ecd0" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="1">ILLUSTRATIVE APP PREVIEW</text>
+<!-- laptop -->
+<rect x="355" y="478" width="735" height="438" rx="22" fill="#050707" stroke="#59645e" stroke-width="4"/>
+<rect x="375" y="500" width="695" height="390" rx="12" fill="url(#screen)" stroke="#28312c"/>
+<rect x="375" y="500" width="150" height="390" rx="12" fill="#101716"/>
+<text x="398" y="538" fill="#eaf4ee" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700">AInvoice</text>
+<g font-family="Arial,Helvetica,sans-serif" font-size="13">
+  <rect x="390" y="563" width="119" height="38" rx="9" fill="#155f3c"/>
+  <text x="407" y="587" fill="#e5fff0" font-weight="700">Overview</text>
+  <text x="407" y="637" fill="#a0ada6">Sales</text><text x="407" y="681" fill="#a0ada6">Customers</text><text x="407" y="725" fill="#a0ada6">Items</text><text x="407" y="769" fill="#a0ada6">Reports</text><text x="407" y="813" fill="#a0ada6">Settings</text>
+</g>
+<text x="548" y="538" fill="#d9e4dc" font-family="Arial,Helvetica,sans-serif" font-size="14">Business overview</text>
+<g>
+  <rect x="548" y="557" width="156" height="100" rx="12" fill="#1b2422" stroke="#2c3832"/>
+  <rect x="718" y="557" width="156" height="100" rx="12" fill="#1b2422" stroke="#2c3832"/>
+  <rect x="888" y="557" width="156" height="100" rx="12" fill="#1b2422" stroke="#2c3832"/>
+  <g font-family="Arial,Helvetica,sans-serif" fill="#97a89f" font-size="12"><text x="566" y="584">TODAY'S SALES</text><text x="736" y="584">BILLS CREATED</text><text x="906" y="584">CUSTOMERS</text></g>
+  <g font-family="Arial,Helvetica,sans-serif" fill="#f1f5f2" font-size="24" font-weight="700"><text x="566" y="624">₹ 12,450</text><text x="736" y="624">24</text><text x="906" y="624">128</text></g>
+  <rect x="548" y="675" width="496" height="188" rx="12" fill="#151d1a" stroke="#2b3731"/>
+  <text x="568" y="706" fill="#e4ece7" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700">Sales activity</text>
+  <path d="M574 821 L625 790 L676 802 L729 752 L782 769 L835 730 L887 743 L940 701 L1017 718" fill="none" stroke="#58df9a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M574 821 L625 790 L676 802 L729 752 L782 769 L835 730 L887 743 L940 701 L1017 718 L1017 845 L574 845Z" fill="#48c887" opacity=".10"/>
+  <g stroke="#2c3832" stroke-width="1"><path d="M574 735H1017M574 780H1017M574 825H1017"/></g>
+</g>
+<path d="M322 917H1120L1082 944H359Z" fill="#626c66" stroke="#88938b" stroke-width="2"/>
+<path d="M599 918H850L829 938H621Z" fill="#28312c"/>
+<!-- phone -->
+<rect x="125" y="570" width="208" height="365" rx="34" fill="#050606" stroke="#69756d" stroke-width="4"/>
+<rect x="139" y="590" width="180" height="325" rx="23" fill="#101715"/>
+<rect x="195" y="579" width="68" height="8" rx="4" fill="#465049"/>
+<text x="229" y="632" fill="#f1f7f3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">AInvoice</text>
+<circle cx="229" cy="713" r="36" fill="#163d2b" stroke="#62e39e" stroke-width="3"/>
+<path d="m211 713 12 12 25-28" fill="none" stroke="#6df1a9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="229" y="779" fill="#eff5f1" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="14">Bill saved</text>
+<text x="229" y="815" fill="#8cf0b6" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="700">₹ 2,450</text>
+<rect x="160" y="842" width="138" height="38" rx="10" fill="url(#green)"/>
+<text x="229" y="866" fill="#08140d" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700">Print / Share</text>
+<!-- feature cards -->
+<g font-family="Arial,Helvetica,sans-serif">
+  <g><rect x="68" y="1020" width="250" height="166" rx="18" fill="#101714" stroke="#355b46" stroke-width="2"/><text x="90" y="1054" fill="#66e5a1" font-size="14" font-weight="700">01</text><text x="90" y="1095" fill="#f3f7f4" font-size="17" font-weight="700">OFFLINE-FIRST</text><text x="90" y="1132" fill="#aab8b0" font-size="15">Local billing data</text><text x="90" y="1156" fill="#aab8b0" font-size="15">on this device</text></g>
+  <g><rect x="335" y="1020" width="250" height="166" rx="18" fill="#101714" stroke="#355b46" stroke-width="2"/><text x="357" y="1054" fill="#66e5a1" font-size="14" font-weight="700">02</text><text x="357" y="1095" fill="#f3f7f4" font-size="17" font-weight="700">QUICK INVOICES</text><text x="357" y="1132" fill="#aab8b0" font-size="15">Multi-item bills</text><text x="357" y="1156" fill="#aab8b0" font-size="15">&amp; clear totals</text></g>
+  <g><rect x="602" y="1020" width="250" height="166" rx="18" fill="#101714" stroke="#355b46" stroke-width="2"/><text x="624" y="1054" fill="#66e5a1" font-size="14" font-weight="700">03</text><text x="624" y="1095" fill="#f3f7f4" font-size="17" font-weight="700">YOUR LANGUAGE</text><text x="624" y="1132" fill="#aab8b0" font-size="15">English • Hindi</text><text x="624" y="1156" fill="#aab8b0" font-size="15">• Marathi starter UI</text></g>
+  <g><rect x="869" y="1020" width="263" height="166" rx="18" fill="#101714" stroke="#355b46" stroke-width="2"/><text x="891" y="1054" fill="#66e5a1" font-size="14" font-weight="700">04</text><text x="891" y="1095" fill="#f3f7f4" font-size="17" font-weight="700">OPEN SOURCE</text><text x="891" y="1132" fill="#aab8b0" font-size="15">Inspect, adapt</text><text x="891" y="1156" fill="#aab8b0" font-size="15">&amp; contribute</text></g>
+</g>
+<rect x="68" y="1210" width="1064" height="76" rx="16" fill="#1a211d" stroke="#4a5d50"/>
+<circle cx="95" cy="1248" r="7" fill="#efbf77"/>
+<text x="119" y="1243" fill="#f3d9aa" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">EARLY-DEVELOPMENT PREVIEW</text>
+<text x="119" y="1268" fill="#b9c3bc" font-family="Arial,Helvetica,sans-serif" font-size="13">Not production-ready accounting software. Local PIN is an entry lock, not encryption.</text>
+<path d="M68 1315H1132" stroke="#34443a" stroke-width="2"/>
+<text x="68" y="1360" fill="#f3f7f4" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">Explore the source code</text>
+<a href="https://github.com/artclass11/ainvoice"><text x="68" y="1400" fill="#6be6a4" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="700">github.com/artclass11/ainvoice</text></a>
+<text x="68" y="1440" fill="#9aa9a0" font-family="Arial,Helvetica,sans-serif" font-size="13">Apache-2.0  •  Free to use, modify and distribute under the license terms</text>
+</svg>
