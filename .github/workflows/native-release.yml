@@ -2,8 +2,10 @@ name: Native desktop releases
 
 on:
   push:
+    branches:
+      - "release-preview"
     tags:
-      - "v*"
+      - "app-v*"
 
 permissions:
   contents: write
@@ -65,8 +67,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: AInvoice ${{ github.ref_name }}
+          tagName: app-v__VERSION__
+          releaseName: AInvoice v__VERSION__ — Early Access
           releaseBody: |
             AInvoice early-access native installers.
             Read docs/PLATFORMS.md and SECURITY.md before using real business data.
