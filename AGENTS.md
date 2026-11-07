@@ -6,6 +6,12 @@ These instructions apply to coding agents, including DeepSeek Harness agents, wo
 
 Make billing obvious for a first-time shop owner. A user should be able to finish initial setup and create the first valid draft invoice without reading a manual. Keep advanced dealer capabilities available behind progressive disclosure.
 
+## Application targets
+
+- Keep PWA and Tauri v2 native shells working from the same frontend.
+- Native packaging targets Windows, macOS, Linux, Android and iOS; do not claim a platform installer exists until a signed build artifact is published.
+- Preserve data when migrating the IndexedDB schema; add fixtures for each old version.
+
 ## Non-negotiable engineering rules
 
 1. Offline-first: creating, viewing and printing a bill must not require a network connection.

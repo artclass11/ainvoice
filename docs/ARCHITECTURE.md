@@ -1,63 +1,72 @@
 # AInvoice architecture
 
-## Architectural choice
+## Product delivery model
 
-Start with an installable Progressive Web App (PWA), built with React and TypeScript. Keep the application domain independent from the UI and storage implementation so a future desktop/mobile shell or optional synchronization service can reuse the same billing rules.
+AInvoice shares one React/TypeScript application across two hosts:
 
-## High-level layers
+- PWA browser host: Vite output and Workbox service worker.
+- Native host: Tauri v2 desktop/mobile shell using the platform WebView.
+
+The Tauri shell embeds the built frontend and does not require an internet server at app startup. The current persistence adapter uses Dexie and IndexedDB in the app's local WebView/browser origin. This is suitable for the local-first prototype, but it is not yet the final encrypted enterprise storage layer.
+
+## Layers
 
 1. **Presentation** — React screens, accessible controls, locale dictionaries and print layout.
-2. **Application services** — use cases: create invoice, record payment, receive stock, export backup.
-3. **Domain** — money arithmetic, invoice state transitions, tax calculation interfaces, numbering and validation.
-4. **Persistence** — Dexie over IndexedDB for device-local records, schema versions and transactions.
-5. **Platform** — service worker, install prompt, file export, printing and optional device capabilities.
+2. **Application services** — create invoice, record payment, manage products/customers, void unpaid invoice and export/restore backup.
+3. **Domain** — money arithmetic, invoice state, payment status, inventory validation and audit event creation.
+4. **Persistence** — Dexie/IndexedDB, versioned migrations and atomic transactions.
+5. **Platform** — PWA service worker, Tauri desktop/mobile packaging, print, file export and platform signing.
 
-UI components must not query IndexedDB directly for complex workflows; use application services so rules can be tested without a browser.
+UI components should call application services rather than directly modifying business records.
 
-## Data model direction
+## Current domain entities
 
-Core entities:
-- BusinessProfile
-- User / Role / Permission (when multi-user support ships)
-- Customer and Supplier
-- Product / Unit / TaxCategory / PriceList
-- Invoice / InvoiceLine / Payment / CreditNote
-- Purchase / PurchaseLine
-- StockMovement / Warehouse / Branch
+- Business settings
+- Product / Unit / tax rate / SKU / stock flags
+- Customer / contact / credit limit / opening balance
+- Invoice / InvoiceLine / tax and discount snapshots
+- Payment / allocation / method / receipt reference
+- StockMovement
 - AuditEvent
-- AppPreference / BackupMetadata
+- Encrypted Backup envelope
 
-Use stable UUIDs for cross-device-ready entity identity. Store money as integer minor units with an explicit currency code. Store tax-rate snapshots and item descriptions on each issued invoice so historical records do not change when a product is edited.
+Future entities include suppliers, purchase invoices, credit notes, refunds, users/roles, branches, warehouses, price lists, approvals, device enrollment and sync metadata.
 
-## Offline-first behavior
+## Data integrity
 
-- The service worker caches the application shell and versioned static assets.
-- IndexedDB is the primary source of truth for a local-only installation.
-- A committed invoice is written in one IndexedDB transaction with its lines and payment allocations.
-- Show a clear "On this device" / "Offline" indicator; never imply that local data is backed up.
-- Backup/export must be user initiated and include a schema version, checksum and validation step.
-- Restore should validate the whole file before replacing data, create a recovery snapshot and report conflicts.
+- Currency is stored as integer minor units (paise/cents).
+- Quantity is decimal but stock quantities are represented as thousandths in the current schema.
+- A sales invoice writes invoice lines, payments, stock movements and the invoice sequence in a single IndexedDB transaction.
+- Tracked stock is decremented on issue.
+- An unpaid invoice can be voided and its tracked stock restored. An invoice with received payments is blocked from voiding until a refund/reconciliation workflow is available.
+- Issued financial records are not silently deleted.
+- Historical line descriptions, unit prices, tax rate and discount are stored on the invoice snapshot.
 
-## Future synchronization
+## Schema migrations
 
-Do not introduce background synchronization until the following are designed and tested:
-- Explicit opt-in and visible sync status.
-- Per-business tenant isolation and authenticated access.
-- Stable IDs, idempotent commands and conflict resolution.
-- Server-side authorization on every request.
-- Encrypted transport, at-rest controls, retention and deletion workflows.
-- Audit events and recoverable backup/restore.
+Dexie schema version 2 adds products, customers, payments, stock movements and audit events. The migration backfills fields introduced for invoices and moves existing paid totals into payment history. All future schema changes must include forward migration tests and sample legacy data.
 
-A sync service must not silently overwrite an invoice that has been edited on another device. Issued financial documents should use append-only correction workflows.
+## Offline behavior
 
-## Money and tax
+- The PWA service worker caches the application shell and static assets.
+- The Tauri shell embeds frontend assets for offline startup.
+- IndexedDB is the local source of truth.
+- Local data is not automatically backed up; the app provides a password-encrypted export/restore workflow.
+- Restore replaces the local business tables only after the encrypted backup has been decrypted and checked for required tables.
 
-Use integer paise/cents for stored money. Convert to display strings only at the presentation edge. Quantity precision and rounding policy must be explicit per unit. Tax calculation must use versioned jurisdiction rules and retain an invoice-time snapshot. Do not assume that every customer is subject to the same tax regime.
+## Native platforms
 
-## Security boundaries
+Tauri targets Windows, macOS, Linux, Android and iOS. Desktop release builds use GitHub Actions on Windows, macOS and Ubuntu runners. Mobile builds require their respective SDKs and signing materials. iOS needs Apple signing infrastructure; Android needs a private keystore for signed distribution.
 
-A local app lock is not a security boundary against a device owner or developer-tools access. IndexedDB can be inspected by anyone with access to the browser profile. A production release needs a reviewed encryption-at-rest and key-recovery design, hardened device authentication, secure backup format, role permissions, audit controls and independent testing. See SECURITY.md.
+## Security architecture and remaining work
 
-## Architecture decision records
+- Local PIN credential uses PBKDF2 hashing but is only an app-entry lock.
+- Exported backups use AES-256-GCM with PBKDF2-SHA256 password derivation.
+- The live IndexedDB store is not encrypted at rest.
+- Future native releases should move sensitive records to an independently reviewed encrypted SQLite/SQLCipher storage adapter and a platform secure-key store.
+- Multi-user/branch deployments need server-side authorization, tenant isolation, signed sessions, conflict resolution, retention/deletion controls and tamper-evident audit logs.
+- No cloud sync or telemetry is enabled by default.
 
-Record material decisions under docs/decisions/ with context, options, decision and consequences. Do not replace local-only architecture with a cloud-first design for convenience.
+## Tax and accounting
+
+Tax rules must be jurisdiction-specific, versioned and effective-dated. Each issued invoice stores the applied rate snapshot. The current UI's selectable rate is a simple configurable input and is **not** a statutory GST engine. Do not claim GST compliance, e-invoice/IRN or e-way bill support until current official requirements and qualified tax review are complete.

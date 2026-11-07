@@ -1,0 +1,65 @@
+name: Native desktop releases
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Build ${{ matrix.platform }} installer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            os: ubuntu-22.04
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file \
+            libssl-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev patchelf
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install frontend dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Generate native platform icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Build and upload native installer
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: AInvoice ${{ github.ref_name }}
+          releaseBody: |
+            AInvoice early-access native installers.
+            Read docs/PLATFORMS.md and SECURITY.md before using real business data.
+            Desktop packages are unsigned unless platform signing secrets are configured.
+          releaseDraft: false
+          prerelease: true
+          uploadWorkflowArtifacts: true
+          args: --verbose

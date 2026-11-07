@@ -1,43 +1,56 @@
 # AInvoice roadmap
 
-Roadmap items are targets, not claims that features already exist.
+Roadmap items are targets, not claims that all features are already complete.
 
-## Phase 0 — Open foundation
-- [x] Public source repository initialized.
-- [x] Apache-2.0 project license and contribution policy.
-- [x] Product, architecture, security and agent instructions.
-- [ ] Build and verify first installable local app.
+## Foundation — implemented in the current source milestone
 
-## Phase 1 — Dependable local billing
-- Guided first-run setup and local app lock.
-- Product/customer directory.
-- Fast invoice creation and print layout.
-- Payment status and receivable book.
-- English, Hindi and Marathi localization.
-- IndexedDB schema migrations and offline shell.
-- Unit tests for money, rounding, numbering and persistence.
+- [x] Public Apache-2.0 repository and contributor policy.
+- [x] React/TypeScript interface and black minimal visual system.
+- [x] English, Hindi and Marathi interface dictionaries for principal workflows.
+- [x] Local PIN entry gate.
+- [x] Dexie/IndexedDB schema with invoices, products, customers, payments, stock movements and audit events.
+- [x] Multi-item invoice creation, discount, tax snapshot, payment capture and partial-payment status.
+- [x] Tracked stock decrement and low-stock warnings.
+- [x] Customer/product maintenance, payment book, reports and invoice print view.
+- [x] AES-256-GCM password-encrypted backup export/restore.
+- [x] Tauri v2 native app project for desktop/mobile targets.
+- [x] Desktop tagged-release pipeline and manually signed mobile build workflows.
 
-## Phase 2 — Shop-ready operations
-- Barcode input and thermal/standard printer workflows.
-- Purchase entries, supplier balances and returns.
-- Optional stock movements and low-stock alert.
-- CSV import/export and validated backup/restore.
-- GST/non-GST invoice configuration after professional review.
+## Stage 1 — reliable shop billing
 
-## Phase 3 — Dealer-grade operations
-- Multiple users, roles and approval rules.
-- Branches, warehouses, price lists and customer-specific pricing.
-- Batch/serial number and expiry tracking where relevant.
-- Immutable audit trail and consolidated reports.
-- Bulk data tools and migration utilities.
+- [ ] Run platform-specific build and persistence tests on Windows, macOS, Linux, Android and iOS.
+- [ ] Add barcode scanner and thermal printer workflows.
+- [ ] Add invoice sequence and print-template settings, receipts and customer statements.
+- [ ] Add CSV imports with preview, validation and duplicate resolution.
+- [ ] Test backup/restore with large data sets and migration from each released schema.
+- [ ] Add purchase entries, supplier book, stock receipts and supplier balances.
+- [ ] Add sales returns, purchase returns, refunds and credit notes.
 
-## Phase 4 — Optional connected features
-- Encrypted multi-device sync with explicit enrollment.
-- Server-side tenant isolation and permission enforcement.
-- Device recovery and key management.
-- Verified integrations such as e-invoicing/e-way bills where applicable.
-- Independent penetration test, privacy review and disaster-recovery test.
+## Stage 2 — accounting and tax depth
+
+- [ ] Versioned tax engine by jurisdiction, effective date and place of supply.
+- [ ] India GST workflow after official rule verification and qualified review.
+- [ ] Tax reports, invoice export formats and reconciliation controls.
+- [ ] Receivables/payables ledger and cash/bank reconciliation.
+- [ ] Accounting period close, audit exports and immutable issued document revisions.
+
+## Stage 3 — retailer/wholesaler operations
+
+- [ ] Multiple warehouses, stock transfers and batch/serial/expiry tracking.
+- [ ] Purchase pricing, sales price lists and customer-specific pricing.
+- [ ] Staff users, permissions, approval limits and shift/cashier close.
+- [ ] Bulk product and customer tools.
+
+## Stage 4 — dealer/enterprise deployments
+
+- [ ] Multi-branch and multi-tenant model.
+- [ ] Encrypted synchronization with idempotent writes and conflict resolution.
+- [ ] Server-side authorization and branch-scoped roles.
+- [ ] Consolidated reporting, API integrations and controlled data exports.
+- [ ] Recovery, retention, deletion and disaster-recovery procedures.
 
 ## Release gates
 
-No phase is complete until tests pass, migrations are tested, accessibility is reviewed, backup/restore is verified and user-facing documentation describes limitations honestly. Tax or statutory features require current official-source verification and qualified review.
+- No production release until sensitive local data storage is reviewed and encrypted, backup/restore has been tested, invoice/payment/stock invariants have comprehensive tests, platform persistence is tested, and independent tax/accounting and security reviews are complete.
+- iOS and Android packages must be signed with the correct platform credentials before distribution.
+- Tax or statutory features require current official-source verification and qualified review.

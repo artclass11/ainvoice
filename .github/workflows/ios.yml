@@ -1,0 +1,54 @@
+name: iOS app build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: Build iOS IPA (Apple signing required)
+    runs-on: macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Initialize iOS project
+        run: pnpm tauri ios init --ci
+      - name: Generate iOS icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Require Apple signing configuration
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+        run: |
+          test -n "$IOS_CERTIFICATE" || (echo "Set IOS_CERTIFICATE in repository Actions secrets." && exit 1)
+          test -n "$IOS_CERTIFICATE_PASSWORD" || (echo "Set IOS_CERTIFICATE_PASSWORD in repository Actions secrets." && exit 1)
+          test -n "$IOS_MOBILE_PROVISION" || (echo "Set IOS_MOBILE_PROVISION in repository Actions secrets." && exit 1)
+      - name: Build signed iOS app
+        env:
+          IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+        run: pnpm tauri ios build
+      - name: Upload IPA for TestFlight/App Store delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: AInvoice-iOS-IPA
+          path: src-tauri/gen/apple/build/arm64/AInvoice.ipa
+          if-no-files-found: warn

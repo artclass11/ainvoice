@@ -1,0 +1,64 @@
+name: Android signed APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Build signed Android APKs
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK and NDK components
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Set up Rust Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Initialize Android project
+        run: pnpm tauri android init --ci
+      - name: Generate Android icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Configure Android signing
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEY_BASE64" || (echo "Set ANDROID_KEY_BASE64 in repository Actions secrets." && exit 1)
+          test -n "$ANDROID_KEY_ALIAS" || (echo "Set ANDROID_KEY_ALIAS in repository Actions secrets." && exit 1)
+          test -n "$ANDROID_KEY_PASSWORD" || (echo "Set ANDROID_KEY_PASSWORD in repository Actions secrets." && exit 1)
+          mkdir -p "$RUNNER_TEMP/ainvoice-android"
+          echo "$ANDROID_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/ainvoice-android/upload-keystore.jks"
+          printf 'keyAlias=%s\npassword=%s\nstoreFile=%s\n' "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/ainvoice-android/upload-keystore.jks" > src-tauri/gen/android/keystore.properties
+          python scripts/patch-android-signing.py
+      - name: Build signed APKs
+        run: pnpm tauri android build --apk --split-per-abi
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: AInvoice-Android-APKs
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error

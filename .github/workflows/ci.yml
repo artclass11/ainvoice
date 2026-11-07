@@ -32,3 +32,36 @@ jobs:
         run: pnpm test
       - name: Production build
         run: pnpm build
+
+  native-linux:
+    name: Native Linux compile check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Tauri Linux prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file \
+            libssl-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev patchelf
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build frontend
+        run: pnpm build
+      - name: Generate native icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Compile native shell
+        run: cargo check --manifest-path src-tauri/Cargo.toml

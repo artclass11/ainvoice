@@ -11,3 +11,8 @@ Thumbs.db
 *.local
 playwright-report/
 test-results/
+src-tauri/target/
+src-tauri/gen/android/
+src-tauri/gen/apple/
+src-tauri/gen/schemas/
+src-tauri/gen/android/keystore.properties
