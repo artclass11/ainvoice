@@ -17,10 +17,20 @@ jobs:
         include:
           - platform: ubuntu-22.04
             os: ubuntu-22.04
-          - platform: windows
+            target: ""
+            args: ""
+          - platform: windows-x64
             os: windows-latest
-          - platform: macos
+            target: ""
+            args: ""
+          - platform: macos-arm64
             os: macos-latest
+            target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out source
@@ -36,6 +46,8 @@ jobs:
             libxdo-dev patchelf
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -58,8 +70,9 @@ jobs:
           releaseBody: |
             AInvoice early-access native installers.
             Read docs/PLATFORMS.md and SECURITY.md before using real business data.
-            Desktop packages are unsigned unless platform signing secrets are configured.
+            macOS and Windows packages are unsigned until publisher signing secrets are configured.
+            Linux packages are provided as early-access builds and must be installed according to distribution guidance.
           releaseDraft: false
           prerelease: true
           uploadWorkflowArtifacts: true
-          args: --verbose
+          args: ${{ matrix.args }}

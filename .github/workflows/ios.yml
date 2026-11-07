@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   ios:
-    name: Build iOS IPA (Apple signing required)
+    name: Build signed iOS app (Apple signing required)
     runs-on: macos-latest
     steps:
       - name: Check out source
@@ -33,22 +33,32 @@ jobs:
         run: pnpm tauri icon public/icon.svg
       - name: Require Apple signing configuration
         env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
           IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
           IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
         run: |
+          test -n "$APPLE_DEVELOPMENT_TEAM" || (echo "Set APPLE_DEVELOPMENT_TEAM in repository Actions secrets." && exit 1)
           test -n "$IOS_CERTIFICATE" || (echo "Set IOS_CERTIFICATE in repository Actions secrets." && exit 1)
           test -n "$IOS_CERTIFICATE_PASSWORD" || (echo "Set IOS_CERTIFICATE_PASSWORD in repository Actions secrets." && exit 1)
           test -n "$IOS_MOBILE_PROVISION" || (echo "Set IOS_MOBILE_PROVISION in repository Actions secrets." && exit 1)
       - name: Build signed iOS app
         env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
           IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
           IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
         run: pnpm tauri ios build
+      - name: Locate generated IPA
+        shell: bash
+        run: |
+          IPA_PATH="$(find src-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
+          test -n "$IPA_PATH" || (echo "No IPA was generated; inspect the Xcode export logs." && exit 1)
+          mkdir -p artifacts/ios
+          cp "$IPA_PATH" artifacts/ios/AInvoice.ipa
       - name: Upload IPA for TestFlight/App Store delivery
         uses: actions/upload-artifact@v4
         with:
           name: AInvoice-iOS-IPA
-          path: src-tauri/gen/apple/build/arm64/AInvoice.ipa
-          if-no-files-found: warn
+          path: artifacts/ios/AInvoice.ipa
+          if-no-files-found: error
