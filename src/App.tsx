@@ -27,7 +27,8 @@ const currency = (minor: number) =>
 const dateLabel = (value: string) =>
   new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 
-const localToday = new Date();\nconst todayKey = [localToday.getFullYear(), String(localToday.getMonth() + 1).padStart(2, "0"), String(localToday.getDate()).padStart(2, "0")].join("-");
+const localToday = new Date();
+const todayKey = [localToday.getFullYear(), String(localToday.getMonth() + 1).padStart(2, "0"), String(localToday.getDate()).padStart(2, "0")].join("-");
 
 export default function App() {
   const [settings, setSettings] = useState<DeviceSettings>();

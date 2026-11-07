@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root{font-family:"DM Sans",Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f3f4f6;background:#090909;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;font-optical-sizing:auto;font-weight:400;--bg:#090909;--panel:#111214;--panel2:#151619;--line:#24262a;--muted:#898d96;--text:#f4f5f7;--accent:#a5e7ca;--accent-strong:#65d6a8;--blue:#9ebdf7;--orange:#f1c18c}
 *{box-sizing:border-box}
