@@ -1,0 +1,13 @@
+{
+  "name": "AInvoice",
+  "short_name": "AInvoice",
+  "description": "Simple offline-first billing for every business.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

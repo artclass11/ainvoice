@@ -2,48 +2,58 @@
 
 **Simple billing for every business. Serious controls when you need them.**
 
-AInvoice is an offline-first billing and business app for independent shops, retailers, wholesalers and large dealers. The interface is designed for non-technical users; the data model and security boundaries are designed to grow with the business.
+AInvoice is an open-source, offline-first billing app for independent shops, retailers, wholesalers and large dealers. The interface is designed for non-technical users; the data model is designed to grow with the business.
+
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](./LICENSE)
+
+## Open source
+
+AInvoice is licensed under **Apache License 2.0**. You may use it commercially, inspect the source, modify it, redistribute it and build private or public services from it, subject to the license terms. Contributions are made under the same license unless explicitly agreed otherwise. See [LICENSE](./LICENSE) and [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Product principles
 
 1. **Start billing immediately** — first-run setup should take minutes, not a training session.
-2. **Offline by default** — invoices and business data are stored on the device; core workflows do not require an internet connection.
-3. **Simple by default, capable on demand** — Quick Bill for a small shop; optional advanced workflows for dealers.
+2. **Offline by default** — core sales workflows work without an internet connection; data is stored locally on the device.
+3. **Simple by default, capable on demand** — Quick Bill for a small shop; optional advanced workflows for larger dealers.
 4. **Your language** — English, Hindi and Marathi are the first interface locales, with a structure for more.
 5. **Private by design** — no advertising SDKs or analytics by default; explicit export, backup and sync controls.
 6. **Trustworthy records** — immutable invoice snapshots, clear audit events, backups and tested calculations.
-
-## Status
-
-This repository starts the product foundation and implementation plan. It is not yet production-ready accounting or tax software. Tax calculations, invoice formats and regulatory integrations must be validated against applicable rules before commercial release.
 
 ## First release scope
 
 - Guided business setup and local device lock (4–6 digit PIN; optional pattern unlock).
 - Products/services, customers and suppliers.
-- Fast GST / non-GST sales billing with discounts, tax modes, payment mode and round-off.
+- Fast GST / non-GST billing with discounts, configurable tax modes, payment mode and round-off.
 - Invoice list, print-ready invoice, PDF export and share.
 - Payment collection, due/credit book and simple sales summaries.
 - Optional stock quantities and low-stock warnings.
-- Offline application shell and local IndexedDB storage.
+- Installable offline application shell and local IndexedDB storage.
 - English, Hindi and Marathi UI dictionaries.
 - Backup/restore with clear warnings and validation.
 
-## Architecture direction
+## Technology direction
 
-The first client is an installable Progressive Web App (PWA): React + TypeScript + Vite, Dexie/IndexedDB for local data, and a service worker for offline app assets. The domain layer is isolated from UI components so a future native shell or encrypted multi-device sync can be added without rewriting billing logic.
+The first client is an installable Progressive Web App (PWA): React + TypeScript + Vite, Dexie/IndexedDB for local data, and a service worker for offline app assets. Billing rules live outside UI components. A future sync service or native shell must not be required for core billing.
 
-**Security distinction:** a 4-digit PIN is a convenient local app lock, not strong encryption by itself. The PIN must never be treated as the only protection for a backup or as a cryptographic key. Production-grade device encryption, recovery and multi-user access require a separately reviewed key-management design. See SECURITY.md.
+## Security status — read before real business use
+
+The PIN is an app-entry convenience gate, not a substitute for operating-system security or audited encryption. Browser IndexedDB is not automatically encrypted by this design. Do not store production-sensitive financial data in an unreviewed build. Encrypted backups, recovery, multi-user permissions, key management and independent security testing are release gates, not claims of the current prototype. See [SECURITY.md](./SECURITY.md).
 
 ## Development
+
+Requires Node.js 20+ and pnpm.
 
     pnpm install
     pnpm dev
     pnpm test
     pnpm build
 
-See docs/PRODUCT_SPEC.md, docs/ARCHITECTURE.md, SECURITY.md, and DEEPSEEK_HARNESS.md.
+See [docs/PRODUCT_SPEC.md](./docs/PRODUCT_SPEC.md), [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md), [docs/ROADMAP.md](./docs/ROADMAP.md), [SECURITY.md](./SECURITY.md) and [DEEPSEEK_HARNESS.md](./DEEPSEEK_HARNESS.md).
+
+## Project status
+
+Early development. This repository is a product foundation, not production-ready accounting or tax software. Tax calculations, invoice formats and regulatory integrations must be validated against applicable rules and reviewed by qualified professionals before commercial release.
 
 ## License
 
-The project license will be selected before public distribution. Third-party dependencies retain their own licenses.
+Apache-2.0. Third-party dependencies and optional integrations keep their own licenses.
