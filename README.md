@@ -68,11 +68,15 @@ Initialize and build iOS on macOS with Xcode and Apple signing:
     pnpm tauri ios init
     pnpm tauri ios build
 
+## Web app for phones and tablets
+
+A GitHub Pages deployment workflow is included for a browser-installable PWA. After enabling **Settings → Pages → Build and deployment → GitHub Actions** once, open https://artclass11.github.io/ainvoice/ on Android or Safari on iPhone/iPad and use the browser's Install / Add to Home Screen option. The web app is also useful on desktop browsers.
+
 ## Direct downloads
 
 Native desktop installers are published to GitHub Releases after a version tag build completes:
 
-**[Download AInvoice releases](https://github.com/artclass11/ainvoice/releases)** (native installers will appear here after a tagged build completes).
+**[Download AInvoice releases](https://github.com/artclass11/ainvoice/releases)** — the early-access release includes Windows, macOS and Linux installers.
 
 [Download the current source ZIP](https://github.com/artclass11/ainvoice/archive/refs/heads/main.zip) — this is source code, not a ready-to-install app.
 

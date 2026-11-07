@@ -27,6 +27,8 @@ When a tagged release completes, its assets will appear there. The latest-releas
 
 ## Install the PWA
 
+The planned GitHub Pages web URL is https://artclass11.github.io/ainvoice/ . To publish it, enable **Settings → Pages → Build and deployment → GitHub Actions** once; the repository workflow then deploys the browser app from `main`.
+
 1. Open the deployed AInvoice website in Chrome or Edge on desktop, or a supported browser on Android.
 2. Use the browser's Install app / Add to Home Screen command.
 3. On iPhone or iPad, open the website in Safari, tap Share, then Add to Home Screen.
