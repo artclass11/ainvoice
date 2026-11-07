@@ -171,6 +171,11 @@ class AInvoiceDatabase extends Dexie {
         }
       });
       if (migratedPayments.length) await tx.table("payments").bulkAdd(migratedPayments);
+      const existingInvoices = await tx.table("invoices").toArray() as Array<{ invoiceNo?: string }>;
+      const highestExistingSequence = existingInvoices.reduce((highest, invoice) => {
+        const match = invoice.invoiceNo?.match(/-(\d+)$/);
+        return Math.max(highest, match ? Number(match[1]) : 0);
+      }, 0);
       await tx.table("settings").toCollection().modify((value: Record<string, any>) => {
         value.currencyCode = value.currencyCode ?? "INR";
         value.countryCode = value.countryCode ?? "IN";
@@ -178,7 +183,7 @@ class AInvoiceDatabase extends Dexie {
         value.phone = value.phone ?? "";
         value.taxId = value.taxId ?? "";
         value.invoicePrefix = value.invoicePrefix ?? "AI";
-        value.invoiceSequence = value.invoiceSequence ?? 0;
+        value.invoiceSequence = Math.max(value.invoiceSequence ?? 0, highestExistingSequence);
       });
     });
   }
