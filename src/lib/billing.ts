@@ -65,7 +65,11 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
 
   const totals = calculateInvoiceTotals(input.lines);
   const now = new Date();
-  const dateISO = now.toISOString();
+  const dateISO = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
   const prefix =
     "AI-" +
     String(now.getFullYear()).slice(-2) +

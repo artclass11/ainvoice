@@ -21,7 +21,7 @@ AInvoice is licensed under **Apache License 2.0**. You may use it commercially, 
 
 ## First release scope
 
-- Guided business setup and local device lock (4–6 digit PIN; optional pattern unlock).
+- Guided business setup and local device-entry PIN (4–6 digits in this first implementation).
 - Products/services, customers and suppliers.
 - Fast GST / non-GST billing with discounts, configurable tax modes, payment mode and round-off.
 - Invoice list, print-ready invoice, PDF export and share.

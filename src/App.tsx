@@ -24,8 +24,11 @@ const navItems: { id: Page; key: "dashboard" | "invoices" | "products" | "custom
 const currency = (minor: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(minor / 100);
 
-const dateLabel = (value: string) =>
-  new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+const dateLabel = (value: string) => {
+  const parts = value.slice(0, 10).split("-").map(Number);
+  const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(localDate);
+};
 
 const localToday = new Date();
 const todayKey = [localToday.getFullYear(), String(localToday.getMonth() + 1).padStart(2, "0"), String(localToday.getDate()).padStart(2, "0")].join("-");
