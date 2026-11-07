@@ -14,7 +14,7 @@ AInvoice is licensed under **Apache License 2.0**. You may use it commercially, 
 
 ![AInvoice project poster](./assets/ainvoice-project-poster.svg)
 
-Download the [AInvoice project poster (SVG)](./assets/ainvoice-project-poster.svg) or the [high-resolution PNG poster](https://raw.githubusercontent.com/artclass11/ainvoice/main/assets/ainvoice-project-poster.png).
+Download the [AInvoice project poster (SVG)](./assets/ainvoice-project-poster.svg).
 
 ## Product principles
 
