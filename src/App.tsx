@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, ClipboardList, Download, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, Users, Wallet, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, Users, Wallet, X } from "lucide-react";
 import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product } from "./lib/db";
 import { calculateInvoiceTotals, createInvoice, parseMoneyToMinor, recordPayment, saveCustomer, saveProduct, voidInvoice, type DraftLineInput } from "./lib/billing";
 import { createPinCredential, verifyPin } from "./lib/security";
@@ -165,7 +165,7 @@ export default function App() {
           <section className="stats-grid two-stats"><Stat title={t("receivedToday")} value={fmt(receivedToday)} hint={t("collections")} tone="green"/><Stat title={t("receivables")} value={fmt(due)} hint={t("amountDue")} tone="orange"/></section>
           <div className="panel list-panel"><div className="panel-heading"><div><h2>{t("payment")} history</h2><p>{t("localOnly")}</p></div></div><PaymentTable rows={payments} t={t} fmt={fmt} onView={id=>{const found=invoices.find(x=>x.id===id);if(found){setPickedInvoice(found);setModal("invoice");}}}/></div></section>}
         {page==="reports"&&<Reports invoices={invoices} payments={payments} t={t} fmt={fmt}/>}
-        {page==="settings"&&<SettingsPage settings={settings} t={t} onSaved={next=>{setSettings(next);setLocale(next.locale);setToast(t("settingsSaved"));}} onRefresh={()=>setRefresh(v=>v+1)}/>}
+        {page==="settings"&&<SettingsPage settings={settings} events={events} t={t} onSaved={next=>{setSettings(next);setLocale(next.locale);setToast(t("settingsSaved"));}} onRefresh={()=>setRefresh(v=>v+1)}/>}
         <footer className="page-footer"><span>Made for the counter, ready for the business.</span><span><ShieldCheck size={13}/> Local-first · Open source · Apache-2.0</span></footer>
       </div>
     </main>
@@ -300,7 +300,7 @@ function InvoiceModal({invoice,settings,locale,fmt,onClose,onPay,onVoided}:{invo
   </ModalFrame>;
 }
 
-function SettingsPage({settings,t,onSaved,onRefresh}:{settings:DeviceSettings;t:(k:MessageKey)=>string;onSaved:(s:DeviceSettings)=>void;onRefresh:()=>void}) {
+function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSettings;events:AuditEvent[];t:(k:MessageKey)=>string;onSaved:(s:DeviceSettings)=>void;onRefresh:()=>void}) {
   const [password,setPassword]=useState("");const [file,setFile]=useState<File>();const [error,setError]=useState("");const [busy,setBusy]=useState(false);
   async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const next:DeviceSettings={...settings,businessName:String(f.get("name")||"").trim(),phone:String(f.get("phone")||""),address:String(f.get("address")||""),taxId:String(f.get("tax")||""),currencyCode:String(f.get("currency")||"INR"),invoicePrefix:String(f.get("prefix")||"AI").trim().toUpperCase(),updatedAt:Date.now()};if(!next.businessName){setError("Enter the business name.");return;}await saveDeviceSettings(next);await db.auditEvents.add({entityType:"settings",action:"updated",summary:"Updated business settings",actorLabel:"Local user",createdAt:Date.now()});onSaved(next);}
   async function backup(){setError("");setBusy(true);try{const blob=await createEncryptedBackup(password);const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ainvoice-backup-"+todayISO()+".ainvoice-backup.json";a.click();URL.revokeObjectURL(url);}catch(err){setError(err instanceof Error?err.message:"Backup failed.");}finally{setBusy(false);}}
@@ -316,7 +316,7 @@ function SettingsPage({settings,t,onSaved,onRefresh}:{settings:DeviceSettings;t:
     <Field label={t("backupPassword")}><input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field>
     <div className="backup-actions"><button className="secondary-button" onClick={backup} disabled={busy}><Download size={15}/>{t("backupExport")}</button><label className="secondary-button file-picker"><UploadIcon/><span>{t("chooseBackup")}</span><input type="file" accept=".json,application/json" onChange={e=>setFile(e.target.files?.[0])}/></label><button className="primary-button" onClick={restore} disabled={busy||!file}>{t("restore")}</button></div>
     {file&&<p className="settings-description">{file.name}</p>}<div className="settings-warning"><CircleHelp size={17}/><p>{t("restoreWarning")} {t("settingsSecurity")}</p></div>
-    <div className="settings-divider"/><div className="settings-section-title">{t("recentActivity")}</div><p className="settings-description">{t("noCloud")} · {t("localData")}</p>
+    <div className="settings-divider"/><div className="settings-section-title">{t("recentActivity")}</div><p className="settings-description">{t("noCloud")} · {t("localData")}</p>{events.length===0?<p className="settings-description">{t("noActivity")}</p>:events.slice(0,8).map((event)=><div className="report-row" key={event.id}><span>{event.action}</span><strong>{event.summary}</strong><small>{dateLabel(event.createdAt)}</small></div>}
   </div>{error&&<div className="form-error settings-error">{error}</div>}</section>;
 }
 function UploadIcon(){return <Download size={15}/>;}

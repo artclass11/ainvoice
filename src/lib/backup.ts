@@ -37,8 +37,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 export async function createEncryptedBackup(password: string): Promise<Blob> {
   const data = await db.transaction(
     "r",
-    db.settings, db.invoices, db.products, db.customers,
-    db.payments, db.stockMovements, db.auditEvents,
+    [db.settings, db.invoices, db.products, db.customers, db.payments, db.stockMovements, db.auditEvents],
     async () => ({
       format: BACKUP_FORMAT,
       schemaVersion: BACKUP_VERSION,
@@ -135,8 +134,7 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
 
   await db.transaction(
     "rw",
-    db.settings, db.invoices, db.products, db.customers,
-    db.payments, db.stockMovements, db.auditEvents,
+    [db.settings, db.invoices, db.products, db.customers, db.payments, db.stockMovements, db.auditEvents],
     async () => {
       for (const name of tableNames) {
         await db.table(name).clear();

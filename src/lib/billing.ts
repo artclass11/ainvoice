@@ -64,7 +64,7 @@ export async function createInvoice(input:CreateInvoiceInput):Promise<Invoice> {
   const paidMinor=input.paidMinor??0;
   if(!Number.isSafeInteger(paidMinor)||paidMinor<0||paidMinor>totals.totalMinor)throw new Error("Payment must be between zero and the bill total.");
 
-  return db.transaction("rw",db.settings,db.invoices,db.products,db.payments,db.stockMovements,db.auditEvents,async()=>{
+  return db.transaction("rw",[db.settings,db.invoices,db.products,db.payments,db.stockMovements,db.auditEvents],async()=>{
     const settings=await db.settings.get("main");
     const prefix=settings?.invoicePrefix||"AI";
     const sequence=(settings?.invoiceSequence??0)+1;
@@ -164,4 +164,16 @@ export async function saveCustomer(input:Omit<Customer,"id"|"createdAt"|"updated
     await addAuditEvent({entityType:"customer",entityId:saved,action:id?"updated":"created",summary:(id?"Updated":"Created")+" customer "+name});
     return saved;
   });
+}
+
+export function parseMoneyToMinor(value: string): number {
+  const normalized = value.trim();
+  if (!/^(?:\d+)(?:\.\d{1,2})?$/.test(normalized)) {
+    throw new Error("Enter an amount with up to two decimal places.");
+  }
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error("Enter a valid amount.");
+  const minor = Math.round(amount * 100);
+  if (!Number.isSafeInteger(minor)) throw new Error("Amount is too large.");
+  return minor;
 }
