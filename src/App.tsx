@@ -5,6 +5,7 @@ import { calculateInvoiceTotals, createInvoice, createPurchase, parseMoneyToMino
 import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/security";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
 import { translate, type Locale, type MessageKey } from "./i18n";
+import { CatalogueTools } from "./components/CatalogueTools";
 
 type Page = "dashboard" | "invoices" | "products" | "customers" | "purchases" | "suppliers" | "cashBook" | "reports" | "settings";
 type Modal = "bill" | "product" | "customer" | "payment" | "invoice" | "purchase" | "supplier" | "supplierPayment" | "purchaseDetails" | null;
@@ -245,7 +246,7 @@ export default function App() {
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("searchBills")}/></div><span>{visibleInvoices.length} {t("invoicesCount")}</span></div>
             <InvoiceTable rows={visibleInvoices} t={t} fmt={fmt} onView={x=>{setPickedInvoice(x);setModal("invoice");}} onPay={x=>{setPickedInvoice(x);setModal("payment");}}/>
           </div></section>}
-        {page==="products"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">CATALOGUE</div><h1>{t("products")}</h1><p>{products.length} {t("productsCount")} · {lowStock} {t("lowStock")}</p></div><button className="primary-button" onClick={()=>{setPickedProduct(undefined);setModal("product");}}><Plus size={17}/>{t("addItem")}</button></div>
+        {page==="products"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">CATALOGUE</div><h1>{t("products")}</h1><p>{products.length} {t("productsCount")} · {lowStock} {t("lowStock")}</p></div><div className="catalogue-page-actions"><CatalogueTools products={products} locale={locale} onImported={count=>{setRefresh(v=>v+1);setToast(count+" products imported.");}}/><button className="primary-button" onClick={()=>{setPickedProduct(undefined);setModal("product");}}><Plus size={17}/>{t("addItem")}</button></div></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{products.length} {t("productsCount")}</span></div>
             <ProductTable rows={products.filter(x=>x.name.toLowerCase().includes(query.toLowerCase())||x.sku.toLowerCase().includes(query.toLowerCase()))} t={t} fmt={fmt} onEdit={x=>{setPickedProduct(x);setModal("product");}}/>
           </div></section>}
