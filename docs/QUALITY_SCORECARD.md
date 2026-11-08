@@ -11,7 +11,7 @@ This scorecard is an engineering assessment of the current repository state, not
 | User experience | 6/10 | Simple local-first workflow and English/Hindi/Marathi foundations; usability studies, accessibility and full translation QA remain. |
 | Security and privacy | 3/10 | PIN hash and retry lockout are app-entry controls only. Local IndexedDB/WebView records are not encrypted at rest. No independent threat review. |
 | Accounting and tax | 3/10 | Basic sales and collections only. Not a full double-entry ledger; supplier purchases, credit notes, returns, refunds, reconciliation and statutory tax validation are incomplete. |
-| Platform readiness | 4/10 | Windows/macOS/Linux early-access builds exist. Android debug build is under validation; iOS signed distribution is not published. Store review, notarization and signing are outstanding. |
+| Platform readiness | 4/10 | Windows/macOS/Linux early-access builds exist. Android ARM64 debug APK is built, verified and published for preview; permanent Android signing and physical-device QA remain. iOS signed distribution is not published. Store review, notarization and signing are outstanding. |
 | Automated testing | 7/10 | Domain, IndexedDB transaction, backup and legacy migration regression tests; no complete Playwright flow, printer matrix, physical-device or performance suite yet. |
 
 ## Recent improvements
@@ -24,7 +24,7 @@ This scorecard is an engineering assessment of the current repository state, not
 - Backup imports validate invoice calculations, references and payment reconciliation before replacing data.
 - Restore offers an encrypted pre-restore safety copy.
 - PIN retry delays escalate after repeated failures; an unattended app locks after ten minutes of inactivity or when the app moves to the background.
-- CI now tests the domain, persistence, backup and migration cases; Android SDK setup was corrected to avoid the removed legacy tools package.
+- CI now tests the domain, persistence, backup and migration cases; Android SDK setup now builds and verifies a debug ARM64 APK without requesting the removed legacy tools package.
 
 ## Mandatory production gates
 
