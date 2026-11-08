@@ -6,6 +6,7 @@ import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/secu
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
 import { translate, type Locale, type MessageKey } from "./i18n";
 import { CatalogueTools } from "./components/CatalogueTools";
+import { createCustomerStatementCsv, createSupplierStatementCsv } from "./lib/statements";
 
 type Page = "dashboard" | "invoices" | "products" | "customers" | "purchases" | "suppliers" | "cashBook" | "reports" | "settings";
 type Modal = "bill" | "product" | "customer" | "payment" | "invoice" | "purchase" | "supplier" | "supplierPayment" | "purchaseDetails" | null;
@@ -24,6 +25,20 @@ function todayISO() { const d = new Date(); return [d.getFullYear(), String(d.ge
 function money(n: number, code = "INR", locale = "en-IN") { try { return new Intl.NumberFormat(locale,{style:"currency",currency:code,maximumFractionDigits:2}).format(n/100); } catch { return code + " " + (n/100).toFixed(2); } }
 function dateLabel(v: string | number, locale = "en-IN") { const d = typeof v === "number" ? new Date(v) : new Date(v.slice(0,10)+"T12:00:00"); return new Intl.DateTimeFormat(locale,{day:"2-digit",month:"short",year:"numeric"}).format(d); }
 function localLocale(l: Locale) { return l === "hi" ? "hi-IN" : l === "mr" ? "mr-IN" : "en-IN"; }
+function downloadStatement(content: string, filename: string): void {
+  const blob = new Blob(["\\uFEFF", content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function statementFilename(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "account";
+}
 
 export default function App() {
   const [settings,setSettings] = useState<DeviceSettings>();
@@ -187,6 +202,25 @@ export default function App() {
     const updated={...settings,locale:next,updatedAt:Date.now()};
     await saveDeviceSettings(updated);setSettings(updated);
   }
+  function exportCustomerStatement(customer: Customer) {
+    try {
+      const csv = createCustomerStatementCsv(customer, invoices, payments, code);
+      downloadStatement(csv, "ainvoice-customer-statement-" + statementFilename(customer.name) + ".csv");
+      setToast("Customer statement exported.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not export customer statement.");
+    }
+  }
+  function exportSupplierStatement(supplier: Supplier) {
+    try {
+      const csv = createSupplierStatementCsv(supplier, purchases, supplierPayments, code);
+      downloadStatement(csv, "ainvoice-supplier-statement-" + statementFilename(supplier.name) + ".csv");
+      setToast("Supplier statement exported.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not export supplier statement.");
+    }
+  }
+
   function done(message?:string) {
     setModal(null);setPickedInvoice(undefined);setPickedProduct(undefined);setPickedCustomer(undefined);setPickedSupplier(undefined);setPickedPurchase(undefined);
     setRefresh(v=>v+1);if(message)setToast(message);
@@ -252,7 +286,7 @@ export default function App() {
           </div></section>}
         {page==="customers"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">RELATIONSHIPS</div><h1>{t("customers")}</h1><p>{customers.length} {t("customersCount")}</p></div><button className="primary-button" onClick={()=>{setPickedCustomer(undefined);setModal("customer");}}><Plus size={17}/>{t("addCustomer")}</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{customers.length} {t("customersCount")}</span></div>
-            <CustomerTable rows={customers.filter(x=>x.name.toLowerCase().includes(query.toLowerCase())||x.phone.includes(query))} invoices={invoices} t={t} fmt={fmt} onEdit={x=>{setPickedCustomer(x);setModal("customer");}}/>
+            <CustomerTable rows={customers.filter(x=>x.name.toLowerCase().includes(query.toLowerCase())||x.phone.includes(query))} invoices={invoices} t={t} fmt={fmt} onEdit={x=>{setPickedCustomer(x);setModal("customer");}} onStatement={exportCustomerStatement}/>
           </div></section>}
         {page==="purchases"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">SUPPLY CHAIN</div><h1>{t("purchases")}</h1><p>{purchases.length} · {t("supplierPayables")}: {fmt(supplierPayables)}</p></div><button className="primary-button" onClick={()=>setModal("purchase")}><Plus size={17}/>{t("newPurchase")}</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{visiblePurchases.length} {t("purchases")}</span></div>
@@ -260,7 +294,7 @@ export default function App() {
           </div></section>}
         {page==="suppliers"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">RELATIONSHIPS</div><h1>{t("suppliers")}</h1><p>{suppliers.length} · {t("supplierPayables")}: {fmt(supplierPayables)}</p></div><button className="primary-button" onClick={()=>{setPickedSupplier(undefined);setModal("supplier");}}><Plus size={17}/>{t("addSupplier")}</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{suppliers.length} {t("suppliers")}</span></div>
-            <SupplierTable rows={suppliers.filter(x=>x.name.toLowerCase().includes(query.toLowerCase())||x.phone.includes(query))} purchases={purchases} t={t} fmt={fmt} onEdit={x=>{setPickedSupplier(x);setModal("supplier");}}/>
+            <SupplierTable rows={suppliers.filter(x=>x.name.toLowerCase().includes(query.toLowerCase())||x.phone.includes(query))} purchases={purchases} t={t} fmt={fmt} onEdit={x=>{setPickedSupplier(x);setModal("supplier");}} onStatement={exportSupplierStatement}/>
           </div></section>}
         {page==="cashBook"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">PAYMENTS</div><h1>{t("cashBook")}</h1><p>{t("collections")}</p></div><button className="primary-button" onClick={()=>setPage("invoices")}><Wallet size={17}/>{t("collectPayment")}</button></div>
           <section className="stats-grid two-stats"><Stat title={t("receivedToday")} value={fmt(receivedToday)} hint={t("collections")} tone="green"/><Stat title={t("receivables")} value={fmt(due)} hint={t("amountDue")} tone="orange"/></section>
@@ -305,8 +339,8 @@ function InvoiceTable({rows,t,fmt,onView,onPay}:{rows:Invoice[];t:(k:MessageKey)
 function ProductTable({rows,t,fmt,onEdit}:{rows:Product[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Product)=>void}) {
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("itemName")}</th><th>{t("sku")}</th><th>{t("salePrice")}</th><th>{t("stock")}</th><th>{t("status")}</th><th>{t("actions")}</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><Package size={22}/></div><strong>{t("noItems")}</strong></div></td></tr>:rows.map(p=><tr key={p.id}><td><strong>{p.name}</strong><small className="cell-sub">{p.unit}</small></td><td>{p.sku}</td><td className="amount-cell">{fmt(p.salePriceMinor)}</td><td>{p.trackStock?(p.stockQuantityMilli/1000).toFixed(3):t("service")}</td><td><span className={"status-pill "+(p.trackStock&&p.stockQuantityMilli<=p.reorderLevelMilli?"due":"paid")}><span/>{p.trackStock&&p.stockQuantityMilli<=p.reorderLevelMilli?t("lowStock"):t("active")}</span></td><td><button className="row-action" onClick={()=>onEdit(p)}><Settings2 size={14}/></button></td></tr>)}</tbody></table></div>;
 }
-function CustomerTable({rows,invoices,t,fmt,onEdit}:{rows:Customer[];invoices:Invoice[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Customer)=>void}) {
-  return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("customer")}</th><th>{t("phone")}</th><th>{t("taxId")}</th><th>{t("receivables")}</th><th>{t("actions")}</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={5}><div className="empty-state"><div className="empty-icon"><Users size={22}/></div><strong>{t("noCustomers")}</strong></div></td></tr>:rows.map(c=>{const balance=c.openingBalanceMinor+invoices.filter(i=>i.customerId===c.id&&i.status==="issued").reduce((a,i)=>a+Math.max(0,i.totalMinor-i.paidMinor),0);return <tr key={c.id}><td><strong>{c.name}</strong><small className="cell-sub">{c.email}</small></td><td>{c.phone||"—"}</td><td>{c.taxId||"—"}</td><td className="amount-cell">{fmt(balance)}</td><td><button className="row-action" onClick={()=>onEdit(c)}><Settings2 size={14}/></button></td></tr>;})}</tbody></table></div>;
+function CustomerTable({rows,invoices,t,fmt,onEdit,onStatement}:{rows:Customer[];invoices:Invoice[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Customer)=>void;onStatement:(x:Customer)=>void}) {
+  return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("customer")}</th><th>{t("phone")}</th><th>{t("taxId")}</th><th>{t("receivables")}</th><th>{t("actions")}</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={5}><div className="empty-state"><div className="empty-icon"><Users size={22}/></div><strong>{t("noCustomers")}</strong></div></td></tr>:rows.map(c=>{const balance=c.openingBalanceMinor+invoices.filter(i=>i.customerId===c.id&&i.status==="issued").reduce((a,i)=>a+Math.max(0,i.totalMinor-i.paidMinor),0);return <tr key={c.id}><td><strong>{c.name}</strong><small className="cell-sub">{c.email}</small></td><td>{c.phone||"—"}</td><td>{c.taxId||"—"}</td><td className="amount-cell">{fmt(balance)}</td><td><div className="row-actions"><button className="row-action" type="button" onClick={()=>onStatement(c)} title="Export customer statement" aria-label="Export customer statement"><Download size={14}/></button><button className="row-action" type="button" onClick={()=>onEdit(c)} title={t("edit")} aria-label={t("edit")}><Settings2 size={14}/></button></div></td></tr>;})}</tbody></table></div>;
 }
 
 function PurchaseTable({rows,t,fmt,onView,onPay,onVoid}:{rows:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onView:(x:Purchase)=>void;onPay:(x:Purchase)=>void;onVoid:(x:Purchase)=>void}) {
@@ -317,11 +351,11 @@ function PurchaseTable({rows,t,fmt,onView,onPay,onVoid}:{rows:Purchase[];t:(k:Me
       <td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewPurchase")} aria-label={t("viewPurchase")}><Eye size={14}/></button>{x.status==="received"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("makeSupplierPayment")}><Wallet size={14}/></button>}{x.status==="received"&&x.paidMinor===0&&<button className="row-action" onClick={()=>onVoid(x)} title={t("voidPurchase")}><X size={14}/></button>}</div></td>
     </tr>)}</tbody></table></div>;
 }
-function SupplierTable({rows,purchases,t,fmt,onEdit}:{rows:Supplier[];purchases:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Supplier)=>void}) {
+function SupplierTable({rows,purchases,t,fmt,onEdit,onStatement}:{rows:Supplier[];purchases:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Supplier)=>void;onStatement:(x:Supplier)=>void}) {
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("supplier")}</th><th>{t("phone")}</th><th>{t("taxId")}</th><th>{t("supplierPayables")}</th><th>{t("actions")}</th></tr></thead><tbody>
     {rows.length===0?<tr><td colSpan={5}><div className="empty-state"><div className="empty-icon"><Truck size={22}/></div><strong>{t("noSuppliers")}</strong></div></td></tr>:rows.map(x=>{
       const due=purchases.filter(p=>p.supplierId===x.id&&p.status==="received").reduce((sum,p)=>sum+Math.max(0,p.totalMinor-p.paidMinor),0);
-      return <tr key={x.id}><td><strong>{x.name}</strong><small className="cell-sub">{x.email}</small></td><td>{x.phone||"—"}</td><td>{x.taxId||"—"}</td><td className="amount-cell">{fmt(due)}</td><td><button className="row-action" onClick={()=>onEdit(x)}><Settings2 size={14}/></button></td></tr>;
+      return <tr key={x.id}><td><strong>{x.name}</strong><small className="cell-sub">{x.email}</small></td><td>{x.phone||"—"}</td><td>{x.taxId||"—"}</td><td className="amount-cell">{fmt(due)}</td><td><div className="row-actions"><button className="row-action" type="button" onClick={()=>onStatement(x)} title="Export supplier statement" aria-label="Export supplier statement"><Download size={14}/></button><button className="row-action" type="button" onClick={()=>onEdit(x)} title={t("edit")} aria-label={t("edit")}><Settings2 size={14}/></button></div></td></tr>;
     })}</tbody></table></div>;
 }
 function SupplierPaymentTable({rows,t,fmt}:{rows:SupplierPayment[];t:(k:MessageKey)=>string;fmt:(v:number)=>string}) {
