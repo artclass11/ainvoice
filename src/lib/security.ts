@@ -1,6 +1,16 @@
 const PBKDF2_ITERATIONS = 310_000;
 const HASH_LENGTH = 256;
 
+const COMMON_PINS = new Set([
+  "0000", "1111", "1212", "1122", "1234", "4321", "2580", "0852",
+  "000000", "111111", "123456", "654321"
+]);
+
+function isPredictablePin(pin: string): boolean {
+  if (new Set(pin).size === 1 || COMMON_PINS.has(pin)) return true;
+  return "0123456789".includes(pin) || "9876543210".includes(pin);
+}
+
 /**
  * Local UI throttling for casual PIN guessing. This is not an OS-backed
  * security boundary: a user with direct access to the device profile can
@@ -56,6 +66,9 @@ async function derivePinHash(pin: string, salt: Uint8Array): Promise<Uint8Array>
 
 export async function createPinCredential(pin: string): Promise<{ salt: string; hash: string }> {
   if (!/^\d{4,6}$/.test(pin)) throw new Error("Choose a PIN with 4 to 6 digits.");
+  if (isPredictablePin(pin)) {
+    throw new Error("Choose a less predictable PIN. Avoid repeated or sequential digits.");
+  }
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await derivePinHash(pin, salt);
   return { salt: toBase64(salt), hash: toBase64(hash) };
