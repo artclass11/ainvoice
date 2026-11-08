@@ -133,6 +133,13 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     const pinHash = fromBase64(requireString(settings.pinHash, "PIN hash", 256));
     if (pinSalt.byteLength !== 16 || pinHash.byteLength !== 32) fail("PIN credentials are malformed.");
   }
+  if (settings.pinFailedAttempts !== undefined) {
+    requireSafeInteger(settings.pinFailedAttempts, "Failed PIN attempt count");
+    if ((settings.pinFailedAttempts as number) > 1_000_000) fail("Failed PIN attempt count is outside the supported range.");
+  }
+  if (settings.pinLockedUntil !== undefined) {
+    requireSafeInteger(settings.pinLockedUntil, "PIN lockout expiry");
+  }
 
   const productIds = new Set<number>();
   const productSkus = new Set<string>();

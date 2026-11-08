@@ -71,6 +71,41 @@ export default function App() {
     return () => { alive = false; };
   }, [unlocked,refresh]);
 
+  // Protect unattended counters and shared devices. Returning from the
+  // background requires a fresh PIN; inactivity locks after ten minutes.
+  useEffect(() => {
+    if (!unlocked) return;
+    let timer: number | undefined;
+    let locked = false;
+    const lock = () => {
+      if (locked) return;
+      locked = true;
+      setModal(null);
+      setPickedInvoice(undefined);
+      setPickedProduct(undefined);
+      setPickedCustomer(undefined);
+      setUnlocked(false);
+      setToast("Session locked automatically. Enter your PIN to continue.");
+    };
+    const resetTimer = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(lock, 10 * 60 * 1000);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") lock();
+      else resetTimer();
+    };
+    const activityEvents = ["pointerdown", "keydown", "touchstart"] as const;
+    activityEvents.forEach((name) => window.addEventListener(name, resetTimer, { passive: true }));
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    resetTimer();
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      activityEvents.forEach((name) => window.removeEventListener(name, resetTimer));
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [unlocked]);
+
   const issued = invoices.filter(x => x.status === "issued");
   const todayBills = issued.filter(x => x.dateISO === todayISO());
   const todaySales = todayBills.reduce((a,x)=>a+x.totalMinor,0);

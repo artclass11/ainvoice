@@ -123,6 +123,7 @@ Read [SECURITY.md](./SECURITY.md) and [ENTERPRISE_READINESS.md](./docs/ENTERPRIS
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Platform builds and downloads](./docs/PLATFORMS.md)
 - [Enterprise readiness plan](./docs/ENTERPRISE_READINESS.md)
+- [Engineering quality scorecard and production gates](./docs/QUALITY_SCORECARD.md)
 - [Roadmap](./docs/ROADMAP.md)
 - [DeepSeek Harness workflow](./DEEPSEEK_HARNESS.md)
 - [Agent instructions](./AGENTS.md)
