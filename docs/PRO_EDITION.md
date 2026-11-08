@@ -27,11 +27,19 @@ AInvoice Pro is the professional workflow track for retailers, wholesalers and d
 - Record opening stock as stock movements and create an audit event in the same transaction.
 - Neutralize formula-leading text during CSV export to reduce spreadsheet formula-injection risk.
 
+### Customer and supplier account statements
+
+- Export an individual customer statement with opening receivable, issued invoices, allocated receipts, a running balance and a closing balance.
+- Export an individual supplier statement with received purchase documents, allocated supplier payments, a running payable balance and a closing balance.
+- Reconcile payment-history totals against each invoice/purchase before export; refuse to create a statement when an allocation or total is inconsistent.
+- Keep statement exports local to the device and protect spreadsheet files from formula-leading text.
+- Supplier opening balances are not yet represented in the current supplier data model, so supplier statements include recorded purchases and payments only.
+
 ## Pro acceptance roadmap
 
 ### Retailer / wholesaler operations
 
-- [ ] Customer and supplier statements with opening balance, dated transactions, receipts/payments and closing balance.
+- [x] Customer and supplier CSV statements with dated transactions, receipts/payments, running balances and closing balances (supplier opening balances remain unsupported in the current data model).
 - [ ] Quotes/estimates with expiry and traceable conversion to issued invoices.
 - [ ] Customer-specific price lists and controlled discount/approval limits.
 - [ ] Barcode lookup and label printing.
@@ -69,6 +77,7 @@ AInvoice Pro is the professional workflow track for retailers, wholesalers and d
 
 - [x] CSV import/export has dedicated unit tests for quoting, decimals, duplicate SKUs, malformed data, row/file limits and formula neutralization.
 - [x] Import transaction tests cover atomicity, race-time duplicate checks, opening stock movements and audit logging.
-- [ ] Run full repository CI and CodeQL on the Pro branch head.
-- [ ] Manual browser review of the preview/import/export workflow with large catalogues and keyboard/screen-reader navigation.
+- [x] Statement reconciliation and CSV formula-neutralization tests; catalogue CSV validation tests.
+- [ ] Run full repository CI and CodeQL on the latest Pro branch head.
+- [ ] Manual browser review of the catalogue and statement export workflows, large catalogues and keyboard/screen-reader navigation.
 - [ ] Manual regression of invoice creation, purchase receipt, stock changes, backup and restore after catalogue import.
