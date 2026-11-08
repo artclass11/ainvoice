@@ -78,6 +78,23 @@ Initialize and build iOS on macOS with Xcode and Apple signing:
 
 A GitHub Pages deployment workflow is included for a browser-installable PWA. After enabling **Settings → Pages → Build and deployment → GitHub Actions** once, open https://artclass11.github.io/ainvoice/ on Android or Safari on iPhone/iPad and use the browser's Install / Add to Home Screen option. The web app is also useful on desktop browsers.
 
+## Platform downloads — AInvoice v0.1.0 early access
+
+Choose the installer for your device. These are **early-access preview builds**, not yet a production-certified accounting release.
+
+| Platform | Download | Build status |
+|---|---|---|
+| Windows 10/11 (64-bit) | [Download .exe installer](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64-setup.exe) · [Download .msi](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64_en-US.msi) | Available |
+| macOS Apple Silicon (M1/M2/M3/M4) | [Download .dmg](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_aarch64.dmg) | Available |
+| macOS Intel | [Download .dmg](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64.dmg) | Available |
+| Android (ARM64) | [Android preview APK](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_android_arm64_debug.apk) | Debug build; publishing after Android CI passes |
+| iPhone / iPad (iOS) | [iOS build workflow](https://github.com/artclass11/ainvoice/actions/workflows/ios.yml) | No installable IPA published yet; Apple signing and provisioning are required |
+| Linux (64-bit) | [AppImage](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.AppImage) · [Debian/Ubuntu .deb](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.deb) · [RPM](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice-0.1.0-1.x86_64.rpm) | Available |
+
+[Open all AInvoice releases](https://github.com/artclass11/ainvoice/releases) · [Source code](https://github.com/artclass11/ainvoice)
+
+**Install notes:** Windows and macOS packages are currently unsigned early-access builds, so the operating system may show an unknown-publisher warning. Android debug APKs are for device testing only and cannot be treated as an upgrade path for a future release signed with a private production key. An iOS IPA will only be published after Apple developer signing is configured; the workflow link above is not an App Store download.
+
 ## Direct downloads
 
 Native desktop installers are published to GitHub Releases after a version tag build completes:

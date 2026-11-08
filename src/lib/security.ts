@@ -1,6 +1,22 @@
 const PBKDF2_ITERATIONS = 310_000;
 const HASH_LENGTH = 256;
 
+/**
+ * Local UI throttling for casual PIN guessing. This is not an OS-backed
+ * security boundary: a user with direct access to the device profile can
+ * reset browser storage. Sensitive records still require encrypted storage.
+ */
+export function pinLockoutDurationMs(failedAttempts: number): number {
+  if (!Number.isSafeInteger(failedAttempts) || failedAttempts < 0) {
+    throw new Error("Failed PIN attempt count is invalid.");
+  }
+  if (failedAttempts < 5) return 0;
+  if (failedAttempts === 5) return 30_000;
+  if (failedAttempts === 6) return 60_000;
+  if (failedAttempts === 7) return 5 * 60_000;
+  return 15 * 60_000;
+}
+
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
   bytes.forEach((byte) => {

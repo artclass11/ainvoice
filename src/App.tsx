@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, Users, Wallet, X } from "lucide-react";
 import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product } from "./lib/db";
 import { calculateInvoiceTotals, createInvoice, parseMoneyToMinor, recordPayment, saveCustomer, saveProduct, voidInvoice, type DraftLineInput } from "./lib/billing";
-import { createPinCredential, verifyPin } from "./lib/security";
+import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/security";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
 import { translate, type Locale, type MessageKey } from "./i18n";
 
@@ -89,15 +89,44 @@ export default function App() {
     if(pin!==confirm){setToast("PINs do not match.");return;}
     try{
       const c=await createPinCredential(pin);
-      const next:DeviceSettings={id:"main",businessName:name,locale:lang,currencyCode:"INR",countryCode:"IN",address:"",phone:"",taxId:"",invoicePrefix:"AI",invoiceSequence:0,pinSalt:c.salt,pinHash:c.hash,createdAt:Date.now(),updatedAt:Date.now()};
+      const next:DeviceSettings={id:"main",businessName:name,locale:lang,currencyCode:"INR",countryCode:"IN",address:"",phone:"",taxId:"",invoicePrefix:"AI",invoiceSequence:0,pinSalt:c.salt,pinHash:c.hash,pinFailedAttempts:0,pinLockedUntil:0,createdAt:Date.now(),updatedAt:Date.now()};
       await saveDeviceSettings(next); setSettings(next);setLocale(lang);setUnlocked(true);setToast(t("noConnectionNeeded"));
     }catch(err){setToast(err instanceof Error?err.message:"Could not save settings.");}
   }
   async function unlock(e:FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if(!settings?.pinSalt||!settings.pinHash)return;
+    e.preventDefault();
+    if(!settings?.pinSalt||!settings.pinHash)return;
+    const now=Date.now();
+    const lockedUntil=Number.isSafeInteger(settings.pinLockedUntil)?(settings.pinLockedUntil??0):0;
+    if(lockedUntil>now){
+      const seconds=Math.ceil((lockedUntil-now)/1000);
+      setToast("Too many incorrect PIN attempts. Try again in "+seconds+" seconds.");
+      return;
+    }
     const pin=String(new FormData(e.currentTarget).get("pin")||"");
-    try{if(await verifyPin(pin,settings.pinSalt,settings.pinHash)){setUnlocked(true);setToast("");}else setToast("Incorrect PIN.");}
-    catch(err){setToast(err instanceof Error?err.message:"PIN check failed.");}
+    try{
+      const valid=await verifyPin(pin,settings.pinSalt,settings.pinHash);
+      if(valid){
+        const updated={...settings,pinFailedAttempts:0,pinLockedUntil:0,updatedAt:Date.now()};
+        await saveDeviceSettings(updated);
+        setSettings(updated);
+        setUnlocked(true);
+        setToast("");
+        return;
+      }
+      const previous=Number.isSafeInteger(settings.pinFailedAttempts)?Math.max(0,settings.pinFailedAttempts??0):0;
+      const attempts=previous+1;
+      const delay=pinLockoutDurationMs(attempts);
+      const until=delay?Date.now()+delay:0;
+      const updated={...settings,pinFailedAttempts:attempts,pinLockedUntil:until,updatedAt:Date.now()};
+      await saveDeviceSettings(updated);
+      setSettings(updated);
+      setToast(delay
+        ?"Too many incorrect PIN attempts. Access is paused for "+Math.ceil(delay/1000)+" seconds."
+        :"Incorrect PIN. Attempt "+attempts+" of 5 before a short pause.");
+    }catch(err){
+      setToast(err instanceof Error?err.message:"PIN check failed.");
+    }
   }
   async function changeLocale(next:Locale) {
     setLocale(next);if(!settings)return;

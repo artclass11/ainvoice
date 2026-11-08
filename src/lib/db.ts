@@ -123,6 +123,8 @@ export interface DeviceSettings {
   invoiceSequence: number;
   pinSalt?: string;
   pinHash?: string;
+  pinFailedAttempts?: number;
+  pinLockedUntil?: number;
   createdAt: number;
   updatedAt: number;
 }

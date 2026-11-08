@@ -1,0 +1,76 @@
+name: Android debug preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-preview
+
+permissions:
+  contents: write
+
+jobs:
+  android-debug:
+    name: Build Android ARM64 debug APK
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - name: Set up Rust Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Initialize Android project
+        run: pnpm tauri android init --ci
+      - name: Generate Android icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Build ARM64 debug APK
+        run: pnpm tauri android build --debug --apk --target aarch64
+      - name: Verify and stage APK
+        shell: bash
+        run: |
+          APK_PATH="$(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' -print -quit)"
+          test -n "$APK_PATH" || (echo "Android build did not produce an APK." && exit 1)
+          unzip -t "$APK_PATH"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)"
+          test -n "$APKSIGNER" || (echo "Android apksigner was not found." && exit 1)
+          "$APKSIGNER" verify --verbose "$APK_PATH"
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p artifacts/android
+          cp "$APK_PATH" "artifacts/android/AInvoice_${APP_VERSION}_android_arm64_debug.apk"
+      - name: Upload APK workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AInvoice-Android-ARM64-Debug
+          path: artifacts/android/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish debug APK to early-access release
+        if: github.ref == 'refs/heads/android-preview'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          gh release upload "app-v${APP_VERSION}" artifacts/android/*.apk --clobber --repo "$GITHUB_REPOSITORY"
