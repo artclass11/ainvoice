@@ -125,8 +125,6 @@ export interface DeviceSettings {
   pinHash?: string;
   pinFailedAttempts?: number;
   pinLockedUntil?: number;
-  pinFailedAttempts?: number;
-  pinLockedUntil?: number;
   createdAt: number;
   updatedAt: number;
 }
