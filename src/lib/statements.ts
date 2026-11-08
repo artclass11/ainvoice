@@ -59,7 +59,7 @@ function buildCsv(
   );
   const data: Array<Array<string | number>> = [[
     "account_type", "account_name", "date", "entry_type", "reference",
-    "description", "currency", "debit", "credit", "running_balance"
+    "description", "currency", "increase_balance", "decrease_balance", "running_balance"
   ]];
   let balance = 0;
   let totalDebit = 0;
@@ -112,6 +112,7 @@ export function createCustomerStatementCsv(
   payments: readonly Payment[],
   currencyCode = "INR"
 ): string {
+  if (!Number.isSafeInteger(customer.id) || customer.id! <= 0) throw new Error("Save the customer before exporting a statement.");
   requireMinor(customer.openingBalanceMinor, "Customer opening balance");
   const relatedInvoices = invoices.filter(invoice => invoice.customerId === customer.id);
   const invoiceIds = new Set(relatedInvoices.map(invoice => invoice.id));
@@ -124,8 +125,8 @@ export function createCustomerStatementCsv(
   }
 
   const rows: StatementRow[] = [{
-    timestamp: Number.isFinite(customer.createdAt) ? customer.createdAt : 0,
-    date: "Opening",
+    timestamp: Number.MIN_SAFE_INTEGER,
+    date: "",
     kind: "opening",
     reference: "",
     description: "Opening balance",
@@ -143,11 +144,17 @@ export function createCustomerStatementCsv(
       return next;
     }, 0);
     requireMinor(invoice.paidMinor, "Invoice paid amount");
-    if (paidTotal !== invoice.paidMinor) {
+    requireMinor(invoice.totalMinor, "Invoice total");
+    if (invoice.paidMinor > invoice.totalMinor || paidTotal !== invoice.paidMinor) {
       throw new Error("Payment history does not reconcile for invoice " + invoice.invoiceNo + ".");
     }
+    for (const payment of invoicePayments) {
+      if (payment.invoiceNo !== invoice.invoiceNo || payment.customerId !== invoice.customerId ||
+          payment.customerName !== invoice.customerName) {
+        throw new Error("Payment allocation does not match invoice " + invoice.invoiceNo + ".");
+      }
+    }
     if (invoice.status !== "issued") continue;
-    requireMinor(invoice.totalMinor, "Invoice total");
     rows.push({
       timestamp: invoice.createdAt,
       date: invoice.dateISO,
@@ -180,6 +187,7 @@ export function createSupplierStatementCsv(
   payments: readonly SupplierPayment[],
   currencyCode = "INR"
 ): string {
+  if (!Number.isSafeInteger(supplier.id) || supplier.id! <= 0) throw new Error("Save the supplier before exporting a statement.");
   const relatedPurchases = purchases.filter(purchase => purchase.supplierId === supplier.id);
   const purchaseIds = new Set(relatedPurchases.map(purchase => purchase.id));
   const relatedPayments = payments.filter(payment => purchaseIds.has(payment.purchaseId));
@@ -200,11 +208,17 @@ export function createSupplierStatementCsv(
       return next;
     }, 0);
     requireMinor(purchase.paidMinor, "Purchase paid amount");
-    if (paidTotal !== purchase.paidMinor) {
+    requireMinor(purchase.totalMinor, "Purchase total");
+    if (purchase.paidMinor > purchase.totalMinor || paidTotal !== purchase.paidMinor) {
       throw new Error("Payment history does not reconcile for purchase " + purchase.purchaseNo + ".");
     }
+    for (const payment of purchasePayments) {
+      if (payment.purchaseNo !== purchase.purchaseNo || payment.supplierId !== purchase.supplierId ||
+          payment.supplierName !== purchase.supplierName) {
+        throw new Error("Payment allocation does not match purchase " + purchase.purchaseNo + ".");
+      }
+    }
     if (purchase.status !== "received") continue;
-    requireMinor(purchase.totalMinor, "Purchase total");
     rows.push({
       timestamp: purchase.createdAt,
       date: purchase.dateISO,
