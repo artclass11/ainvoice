@@ -36,6 +36,15 @@ const messages = {
     previewWarning:"Early development preview. Validate tax rules and backups before real business use.",
     secureBackup:"AES-256-GCM encrypted backup", settingsSecurity:"The PIN is an app-entry lock. It does not encrypt the local database.",
     void:"Void", voidReason:"Reason for voiding", confirmVoid:"Void bill", invoiceVoided:"Bill voided.", paymentPending:"Payment pending",
+    purchases:"Purchases", suppliers:"Suppliers", addSupplier:"Add supplier", newPurchase:"Record purchase",
+    purchaseNo:"Purchase number", supplier:"Supplier", supplierName:"Supplier name", noSuppliers:"No suppliers yet.",
+    noPurchases:"No purchases recorded yet.", noSupplierPayments:"No supplier payments recorded yet.",
+    supplierPayables:"Supplier payables", supplierPayment:"Supplier payments", makeSupplierPayment:"Record supplier payment",
+    purchaseHelp:"Record a supplier bill and receive stock in one step.", manualSupplier:"Enter supplier name",
+    purchaseItems:"Purchase items", manualItem:"Manual item / service", unitCost:"Unit cost", purchaseTotal:"Purchase total",
+    savePurchase:"Save & receive stock", purchaseSaved:"Purchase recorded and stock received.", supplierSaved:"Supplier saved.",
+    purchaseVoided:"Purchase voided and stock reversed.", voidPurchase:"Void purchase", purchaseVoidReason:"Enter a reason to void this unpaid purchase.",
+    supplierPaymentSaved:"Supplier payment recorded."
     unitPcs:"pcs", unitKg:"kg", unitLitre:"litre", unitHour:"hour", unitBox:"box", languageChanged:"Language changed."
   },
   hi: {
@@ -73,6 +82,15 @@ const messages = {
     previewWarning:"शुरुआती डेवलपमेंट प्रीव्यू। असली व्यवसाय में उपयोग से पहले टैक्स नियम और बैकअप जांचें।",
     secureBackup:"AES-256-GCM एन्क्रिप्टेड बैकअप", settingsSecurity:"PIN ऐप खोलने का लॉक है। यह लोकल डेटाबेस को एन्क्रिप्ट नहीं करता।",
     void:"रद्द", voidReason:"बिल रद्द करने का कारण", confirmVoid:"बिल रद्द करें", invoiceVoided:"बिल रद्द हुआ।", paymentPending:"भुगतान बाकी",
+    purchases:"खरीद", suppliers:"आपूर्तिकर्ता", addSupplier:"आपूर्तिकर्ता जोड़ें", newPurchase:"खरीद दर्ज करें",
+    purchaseNo:"खरीद नंबर", supplier:"आपूर्तिकर्ता", supplierName:"आपूर्तिकर्ता का नाम", noSuppliers:"अभी कोई आपूर्तिकर्ता नहीं।",
+    noPurchases:"अभी कोई खरीद दर्ज नहीं।", noSupplierPayments:"अभी कोई आपूर्तिकर्ता भुगतान दर्ज नहीं।",
+    supplierPayables:"आपूर्तिकर्ता को देय", supplierPayment:"आपूर्तिकर्ता भुगतान", makeSupplierPayment:"आपूर्तिकर्ता भुगतान दर्ज करें",
+    purchaseHelp:"आपूर्तिकर्ता का बिल दर्ज करें और स्टॉक प्राप्त करें।", manualSupplier:"आपूर्तिकर्ता का नाम लिखें",
+    purchaseItems:"खरीदे गए आइटम", manualItem:"मैनुअल आइटम / सेवा", unitCost:"खरीद लागत", purchaseTotal:"खरीद कुल",
+    savePurchase:"सेव करें और स्टॉक प्राप्त करें", purchaseSaved:"खरीद दर्ज हुई और स्टॉक प्राप्त हुआ।", supplierSaved:"आपूर्तिकर्ता सेव हुआ।",
+    purchaseVoided:"खरीद रद्द हुई और स्टॉक वापस किया गया।", voidPurchase:"खरीद रद्द करें", purchaseVoidReason:"इस अवैतनिक खरीद को रद्द करने का कारण लिखें।",
+    supplierPaymentSaved:"आपूर्तिकर्ता भुगतान दर्ज हुआ।"
     unitPcs:"पीस", unitKg:"किलो", unitLitre:"लीटर", unitHour:"घंटा", unitBox:"बॉक्स", languageChanged:"भाषा बदल गई।"
   },
   mr: {
@@ -110,6 +128,15 @@ const messages = {
     previewWarning:"सुरुवातीचे डेव्हलपमेंट प्रीव्ह्यू. प्रत्यक्ष वापराआधी कर नियम आणि बॅकअप तपासा.",
     secureBackup:"AES-256-GCM एन्क्रिप्टेड बॅकअप", settingsSecurity:"PIN हा अॅप उघडण्याचा लॉक आहे. तो लोकल डेटाबेस एन्क्रिप्ट करत नाही.",
     void:"रद्द", voidReason:"बिल रद्द करण्याचे कारण", confirmVoid:"बिल रद्द करा", invoiceVoided:"बिल रद्द झाले.", paymentPending:"पेमेंट बाकी",
+    purchases:"खरेदी", suppliers:"पुरवठादार", addSupplier:"पुरवठादार जोडा", newPurchase:"खरेदी नोंदवा",
+    purchaseNo:"खरेदी क्रमांक", supplier:"पुरवठादार", supplierName:"पुरवठादाराचे नाव", noSuppliers:"अजून पुरवठादार नाहीत.",
+    noPurchases:"अजून खरेदी नोंदवलेली नाही.", noSupplierPayments:"अजून पुरवठादार पेमेंट नोंदवलेले नाही.",
+    supplierPayables:"पुरवठादार देय", supplierPayment:"पुरवठादार पेमेंट", makeSupplierPayment:"पुरवठादार पेमेंट नोंदवा",
+    purchaseHelp:"पुरवठादाराचे बिल नोंदवा आणि साठा प्राप्त करा.", manualSupplier:"पुरवठादाराचे नाव लिहा",
+    purchaseItems:"खरेदी केलेल्या वस्तू", manualItem:"मॅन्युअल वस्तू / सेवा", unitCost:"खरेदी खर्च", purchaseTotal:"खरेदी एकूण",
+    savePurchase:"जतन करा आणि साठा प्राप्त करा", purchaseSaved:"खरेदी नोंदली आणि साठा प्राप्त झाला.", supplierSaved:"पुरवठादार जतन झाला.",
+    purchaseVoided:"खरेदी रद्द झाली आणि साठा परत केला.", voidPurchase:"खरेदी रद्द करा", purchaseVoidReason:"ही न भरलेली खरेदी रद्द करण्याचे कारण लिहा.",
+    supplierPaymentSaved:"पुरवठादार पेमेंट नोंदवले."
     unitPcs:"नग", unitKg:"किलो", unitLitre:"लिटर", unitHour:"तास", unitBox:"बॉक्स", languageChanged:"भाषा बदलली."
   }
 } satisfies Record<Locale, Record<string, string>>;
