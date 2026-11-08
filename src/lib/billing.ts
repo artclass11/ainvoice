@@ -90,6 +90,14 @@ export function calculateInvoiceTotals(lines: DraftLineInput[]): InvoiceTotals {
     if (!line || typeof line.description !== "string" || !line.description.trim()) {
       throw new Error("Every item needs a name.");
     }
+    const description = line.description.trim();
+    if (description.length > 200) throw new Error("Item description must be 200 characters or fewer.");
+    if (line.sku !== undefined && (typeof line.sku !== "string" || line.sku.trim().length > 64)) {
+      throw new Error("Item code must be 64 characters or fewer.");
+    }
+    if (line.unit !== undefined && (typeof line.unit !== "string" || line.unit.trim().length > 24)) {
+      throw new Error("Unit must be 24 characters or fewer.");
+    }
     const quantityMilli = quantityToMilli(line.quantity);
     if (line.productId !== undefined && (!Number.isSafeInteger(line.productId) || line.productId <= 0)) {
       throw new Error("Invalid item reference.");
@@ -127,7 +135,7 @@ export function calculateInvoiceTotals(lines: DraftLineInput[]): InvoiceTotals {
     return {
       productId: line.productId,
       sku: line.sku?.trim() || undefined,
-      description: line.description.trim(),
+      description,
       unit: line.unit?.trim() || "pcs",
       quantity: quantityMilli / 1000,
       unitPriceMinor: line.unitPriceMinor,
@@ -194,8 +202,12 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
   if (input.customerId !== undefined && (!Number.isSafeInteger(input.customerId) || input.customerId <= 0)) {
     throw new Error("Select a valid customer.");
   }
-  if (input.notes && input.notes.length > 2000) {
+  if (input.notes !== undefined && (typeof input.notes !== "string" || input.notes.length > 2000)) {
     throw new Error("Notes must be 2,000 characters or fewer.");
+  }
+  if (input.paymentReference !== undefined &&
+      (typeof input.paymentReference !== "string" || input.paymentReference.length > 160)) {
+    throw new Error("Payment reference must be 160 characters or fewer.");
   }
 
   const totals = calculateInvoiceTotals(input.lines);
@@ -252,6 +264,9 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
       const customerName = customer?.name ?? input.customerName.trim();
       if (!customerName) {
         throw new Error("Enter a customer name.");
+      }
+      if (customerName.length > 160) {
+        throw new Error("Customer name must be 160 characters or fewer.");
       }
 
       const lineSnapshots: InvoiceLine[] = [];
@@ -372,6 +387,14 @@ export async function recordPayment(input: {
   if (!isPaymentMethod(input.method)) {
     throw new Error("Choose a valid payment method.");
   }
+  if (input.reference !== undefined &&
+      (typeof input.reference !== "string" || input.reference.length > 160)) {
+    throw new Error("Payment reference must be 160 characters or fewer.");
+  }
+  if (input.note !== undefined &&
+      (typeof input.note !== "string" || input.note.length > 1000)) {
+    throw new Error("Payment note must be 1,000 characters or fewer.");
+  }
 
   return db.transaction("rw", db.invoices, db.payments, db.auditEvents, async () => {
     const invoice = await db.invoices.get(input.invoiceId);
@@ -480,6 +503,7 @@ export async function saveProduct(
   const unit = input.unit.trim();
 
   if (!name) throw new Error("Enter an item name.");
+  if (name.length > 160) throw new Error("Item name must be 160 characters or fewer.");
   if (!sku || sku.length > 64) throw new Error("Enter an item code up to 64 characters.");
   if (!unit || unit.length > 24) throw new Error("Enter a valid unit.");
   if (![input.salePriceMinor, input.purchasePriceMinor].every(Number.isSafeInteger) ||
