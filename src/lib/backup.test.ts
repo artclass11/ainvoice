@@ -206,7 +206,7 @@ describe("encrypted business backups", () => {
     await db.stockMovements.update(movement.id!, { referenceId: undefined });
 
     const inconsistent = await makeBackupFile();
-    await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/missing its invoice reference/);
+    await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/missing its source document reference/);
     expect(await db.invoices.count()).toBe(1);
   });
 
