@@ -89,6 +89,39 @@ describe("encrypted business backups", () => {
     expect(await db.invoices.count()).toBe(1);
   });
 
+  it("rejects payment records reassigned to a different customer", async () => {
+    const originalCustomerId = await db.customers.add({
+      name: "Original Customer", phone: "", email: "", address: "", taxId: "",
+      creditLimitMinor: 0, openingBalanceMinor: 0, active: true, createdAt: 1, updatedAt: 1
+    });
+    const otherCustomerId = await db.customers.add({
+      name: "Other Customer", phone: "", email: "", address: "", taxId: "",
+      creditLimitMinor: 0, openingBalanceMinor: 0, active: true, createdAt: 1, updatedAt: 1
+    });
+    await createInvoice({
+      customerId: originalCustomerId,
+      customerName: "Ignored",
+      lines: [{ description: "Service", quantity: 1, unitPriceMinor: 1000, taxRateBps: 0 }],
+      paidMinor: 500
+    });
+    const payment = (await db.payments.toArray())[0];
+    await db.payments.update(payment.id!, { customerId: otherCustomerId });
+
+    const inconsistent = await makeBackupFile();
+    await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/customer assignment/);
+    expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("rejects invoice stock movements without a source invoice reference", async () => {
+    await seedInvoice();
+    const movement = (await db.stockMovements.where("type").equals("sale").toArray())[0];
+    await db.stockMovements.update(movement.id!, { referenceId: undefined });
+
+    const inconsistent = await makeBackupFile();
+    await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/missing its invoice reference/);
+    expect(await db.invoices.count()).toBe(1);
+  });
+
   it("rejects a tampered ciphertext without changing business data", async () => {
     await seedInvoice();
     const backup = await createEncryptedBackup(PASSWORD);

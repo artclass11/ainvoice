@@ -73,4 +73,35 @@ describe("database schema migrations", () => {
 
     current.close();
   });
+  it("backfills invoice IDs on historical stock-sale movements", async () => {
+    const legacy = new Dexie(databaseName);
+    legacy.version(3).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    });
+    await legacy.open();
+    await legacy.table("invoices").put({ id: 7, invoiceNo: "AI-2611-00007" });
+    await legacy.table("stockMovements").put({
+      id: 4, productId: 9, productName: "Legacy item", type: "sale",
+      quantityDeltaMilli: -1000, referenceType: "invoice",
+      note: "AI-2611-00007", createdAt: 101
+    });
+    await legacy.table("stockMovements").put({
+      id: 5, productId: 9, productName: "Manual adjustment", type: "adjustment",
+      quantityDeltaMilli: 1000, referenceType: "manual",
+      note: "Opening balance", createdAt: 102
+    });
+    legacy.close();
+
+    const current = new AInvoiceDatabase(databaseName);
+    await current.open();
+    expect((await current.stockMovements.get(4))?.referenceId).toBe(7);
+    expect((await current.stockMovements.get(5))?.referenceId).toBeUndefined();
+    current.close();
+  });
 });

@@ -213,6 +213,30 @@ export class AInvoiceDatabase extends Dexie {
         invoice.schemaVersion = 2;
       });
     });
+    this.version(4).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    }).upgrade(async (tx) => {
+      const invoices = await tx.table("invoices").toArray() as Array<{ id?: number; invoiceNo?: string }>;
+      const invoiceIdsByNumber = new Map<string, number>();
+      for (const invoice of invoices) {
+        if (Number.isSafeInteger(invoice.id) && typeof invoice.invoiceNo === "string" && invoice.invoiceNo.length > 0) {
+          invoiceIdsByNumber.set(invoice.invoiceNo, invoice.id as number);
+        }
+      }
+      // Older builds kept only the invoice number in movement.note.
+      await tx.table("stockMovements").toCollection().modify((movement: Record<string, any>) => {
+        if (movement.type !== "sale" || movement.referenceType !== "invoice" ||
+            movement.referenceId !== undefined || typeof movement.note !== "string") return;
+        const invoiceId = invoiceIdsByNumber.get(movement.note);
+        if (invoiceId !== undefined) movement.referenceId = invoiceId;
+      });
+    });
   }
 }
 

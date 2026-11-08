@@ -270,6 +270,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
       }
 
       const lineSnapshots: InvoiceLine[] = [];
+      const stockMovementIds: number[] = [];
       for (const line of totals.lines) {
         if (!line.productId) {
           lineSnapshots.push({ ...line, stockTracked: false });
@@ -303,7 +304,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
           stockQuantityMilli: product.stockQuantityMilli - used,
           updatedAt: Date.now()
         });
-        await db.stockMovements.add({
+        const movementId = await db.stockMovements.add({
           productId: product.id!,
           productName: product.name,
           type: "sale",
@@ -312,6 +313,7 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
           note: invoiceNo,
           createdAt: Date.now()
         });
+        stockMovementIds.push(movementId);
         lineSnapshots.push({ ...line, stockTracked: true });
       }
 
@@ -339,6 +341,9 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
       };
 
       const invoiceId = await db.invoices.add(invoice);
+      for (const movementId of stockMovementIds) {
+        await db.stockMovements.update(movementId, { referenceId: invoiceId });
+      }
       if (paidMinor > 0) {
         await db.payments.add({
           invoiceId,

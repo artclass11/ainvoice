@@ -289,6 +289,9 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
       if (!customerIds.has(customerId)) fail("A payment refers to a missing customer.");
     }
     if (value.invoiceNo !== invoice.invoiceNo) fail("Payment invoice number does not match its invoice.");
+    if (value.customerId !== invoice.customerId || value.customerName !== invoice.customerName) {
+      fail("Payment customer assignment does not match its invoice.");
+    }
     const sum = (paymentSums.get(invoiceId) ?? 0) + amount;
     requireSafeInteger(sum, "Payment history total");
     paymentSums.set(invoiceId, sum);
@@ -308,12 +311,25 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     requireString(value.productName, "Stock movement product name", 160);
     if (!["sale", "purchase", "return", "adjustment"].includes(String(value.type))) fail("Stock movement type is invalid.");
     if (value.referenceType !== "invoice" && value.referenceType !== "manual") fail("Stock movement reference type is invalid.");
+    if (value.referenceType === "invoice" && value.referenceId === undefined) {
+      fail("An invoice stock movement is missing its invoice reference.");
+    }
     if (value.referenceId !== undefined) {
       const referenceId = requireSafeInteger(value.referenceId, "Stock movement reference ID", 1);
       if (value.referenceType === "invoice" && !invoiceIds.has(referenceId)) fail("A stock movement refers to a missing invoice.");
+      if (value.referenceType === "invoice") {
+        const sourceInvoice = invoiceById.get(referenceId);
+        const sourceLines = sourceInvoice?.lines;
+        if (!Array.isArray(sourceLines) || !sourceLines.some((line) => isRecord(line) && line.productId === productId)) {
+          fail("A stock movement product does not match its invoice.");
+        }
+      }
     }
     if (typeof value.quantityDeltaMilli !== "number" || !Number.isSafeInteger(value.quantityDeltaMilli) || value.quantityDeltaMilli === 0) {
       fail("Stock movement quantity is invalid.");
+    }
+    if (value.type === "sale" && (value.quantityDeltaMilli as number) >= 0) {
+      fail("A sale stock movement must reduce stock.");
     }
     requireString(value.note, "Stock movement note", 200);
     requireSafeInteger(value.createdAt, "Stock movement timestamp");

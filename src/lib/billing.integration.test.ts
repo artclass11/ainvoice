@@ -89,7 +89,11 @@ describe("transactional billing workflows", () => {
     expect(invoice.paymentStatus).toBe("partial");
     expect(invoice.lines.every((line) => line.stockTracked)).toBe(true);
     expect((await db.products.get(productId))?.stockQuantityMilli).toBe(1500);
-    expect(await db.stockMovements.where("type").equals("sale").count()).toBe(2);
+    const saleMovements = await db.stockMovements.where("type").equals("sale").toArray();
+    expect(saleMovements).toHaveLength(2);
+    expect(saleMovements.every((movement) => (
+      movement.referenceType === "invoice" && movement.referenceId === invoice.id
+    ))).toBe(true);
 
     const updated = await recordPayment({ invoiceId: invoice.id!, amountMinor: 30000, method: "cash" });
     expect(updated.paidMinor).toBe(35000);
