@@ -76,7 +76,7 @@ describe("product catalogue CSV", () => {
   it("rejects malformed quoting, invalid booleans, excess precision and tax above 100%", () => {
     expect(() => previewProductCsv(header + '\n"Unclosed,SKU,pcs,10')).toThrow(/unclosed quoted field/);
     const preview = previewProductCsv(header + "\nBad bool,B-1,pcs,10,,,,,maybe,true\n" +
-      "Bad tax,T-1,pcs,10,,,,,true,true\n");
+      "Bad tax,T-1,pcs,10,0,100.01,0,0,true,true\n");
     expect(preview.products).toHaveLength(0);
     expect(preview.issues[0].message).toMatch(/Track stock/);
     expect(preview.issues[1].message).toMatch(/Tax rate/);
