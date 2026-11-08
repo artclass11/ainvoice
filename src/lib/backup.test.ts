@@ -38,7 +38,7 @@ async function makeBackupFile(password = PASSWORD): Promise<File> {
   });
 }
 
-async function seedInvoice(): Promise<void> {
+async function seedInvoice(paidMinor = 500): Promise<void> {
   const productId = await saveProduct({
     name: "Notebook",
     sku: "NOTE-001",
@@ -54,7 +54,7 @@ async function seedInvoice(): Promise<void> {
   await createInvoice({
     customerName: "Test customer",
     lines: [{ productId, description: "Notebook", sku: "NOTE-001", unit: "pcs", quantity: 1, unitPriceMinor: 10000, taxRateBps: 1800 }],
-    paidMinor: 500
+    paidMinor
   });
 }
 
@@ -110,6 +110,33 @@ describe("encrypted business backups", () => {
     const inconsistent = await makeBackupFile();
     await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/customer assignment/);
     expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("rejects a stock-sale quantity that differs from the invoice item quantity", async () => {
+    await seedInvoice();
+    const movement = (await db.stockMovements.where("type").equals("sale").toArray())[0];
+    await db.stockMovements.update(movement.id!, { quantityDeltaMilli: -2500 });
+
+    const inconsistent = await makeBackupFile();
+    await expect(restoreEncryptedBackup(inconsistent, PASSWORD)).rejects.toThrow(/quantity does not match the invoice items/);
+    expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("round-trips fully reversed stock movements for a voided invoice", async () => {
+    await seedInvoice(0);
+    const invoice = (await db.invoices.toArray())[0];
+    const { voidInvoice } = await import("./billing");
+    await voidInvoice(invoice.id!, "Customer cancelled");
+    const file = await makeBackupFile();
+
+    await db.invoices.clear();
+    await db.stockMovements.clear();
+    await restoreEncryptedBackup(file, PASSWORD);
+
+    expect((await db.invoices.get(invoice.id!))?.status).toBe("void");
+    const movements = await db.stockMovements.where("referenceId").equals(invoice.id!).toArray();
+    expect(movements.filter((movement) => movement.type === "sale").reduce((sum, x) => sum + x.quantityDeltaMilli, 0)).toBe(-1000);
+    expect(movements.filter((movement) => movement.type === "return").reduce((sum, x) => sum + x.quantityDeltaMilli, 0)).toBe(1000);
   });
 
   it("rejects invoice stock movements without a source invoice reference", async () => {

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { calculateInvoiceTotals, getPaymentStatus } from "./billing";
+import { calculateInvoiceTotals, getPaymentStatus, quantityToMilli } from "./billing";
 
 const BACKUP_FORMAT = "AINVOICE-ENCRYPTED-BACKUP";
 const BACKUP_VERSION = 1;
@@ -303,6 +303,7 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
   }
 
   const movementIds = new Set<number>();
+  const stockFlowByInvoice = new Map<number, { sales: Map<number, number>; returns: Map<number, number> }>();
   for (const value of movementRows) {
     if (!isRecord(value)) fail("Stock movement is malformed.");
     requireUniqueId(value, "Stock movement", movementIds);
@@ -323,6 +324,7 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
         if (!Array.isArray(sourceLines) || !sourceLines.some((line) => isRecord(line) && line.productId === productId)) {
           fail("A stock movement product does not match its invoice.");
         }
+        if (value.note !== sourceInvoice?.invoiceNo) fail("A stock movement number does not match its invoice.");
       }
     }
     if (typeof value.quantityDeltaMilli !== "number" || !Number.isSafeInteger(value.quantityDeltaMilli) || value.quantityDeltaMilli === 0) {
@@ -331,8 +333,55 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     if (value.type === "sale" && (value.quantityDeltaMilli as number) >= 0) {
       fail("A sale stock movement must reduce stock.");
     }
+    if (value.type === "return" && (value.quantityDeltaMilli as number) <= 0) {
+      fail("A return stock movement must increase stock.");
+    }
+    if (value.referenceType === "invoice" && (value.type === "sale" || value.type === "return")) {
+      const invoiceId = value.referenceId as number;
+      const flow = stockFlowByInvoice.get(invoiceId) ?? { sales: new Map<number, number>(), returns: new Map<number, number>() };
+      const bucket = value.type === "sale" ? flow.sales : flow.returns;
+      const amount = Math.abs(value.quantityDeltaMilli as number);
+      const sum = (bucket.get(productId) ?? 0) + amount;
+      requireSafeInteger(sum, "Stock movement quantity total");
+      bucket.set(productId, sum);
+      stockFlowByInvoice.set(invoiceId, flow);
+    }
     requireString(value.note, "Stock movement note", 200);
     requireSafeInteger(value.createdAt, "Stock movement timestamp");
+  }
+
+  // Reconcile invoice-linked inventory movement totals with the issued bill.
+  // Older invoice lines without stockTracked metadata are checked when a sale
+  // movement exists; explicit false/true snapshots are always authoritative.
+  for (const [invoiceId, invoice] of invoiceById) {
+    const flow = stockFlowByInvoice.get(invoiceId) ?? { sales: new Map<number, number>(), returns: new Map<number, number>() };
+    const expected = new Map<number, number>();
+    for (const rawLine of invoice.lines as unknown[]) {
+      if (!isRecord(rawLine) || rawLine.productId === undefined) continue;
+      const productId = requireSafeInteger(rawLine.productId, "Invoice product ID", 1);
+      const sold = flow.sales.get(productId) ?? 0;
+      if (rawLine.stockTracked === false) {
+        if (sold > 0) fail("An untracked invoice item has a stock-sale movement.");
+        continue;
+      }
+      if (rawLine.stockTracked === true || sold > 0) {
+        const amount = quantityToMilli(rawLine.quantity as number);
+        expected.set(productId, (expected.get(productId) ?? 0) + amount);
+      }
+    }
+    const productIdsToCheck = new Set<number>([
+      ...expected.keys(),
+      ...flow.sales.keys(),
+      ...flow.returns.keys()
+    ]);
+    for (const productId of productIdsToCheck) {
+      const sold = flow.sales.get(productId) ?? 0;
+      const returned = flow.returns.get(productId) ?? 0;
+      const expectedSold = expected.get(productId) ?? 0;
+      if (sold !== expectedSold) fail("Stock-sale quantity does not match the invoice items.");
+      const expectedReturned = invoice.status === "void" ? sold : 0;
+      if (returned !== expectedReturned) fail("Stock-return quantity does not match the invoice status.");
+    }
   }
 
   const auditIds = new Set<number>();
