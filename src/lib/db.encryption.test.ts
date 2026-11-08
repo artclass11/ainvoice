@@ -172,6 +172,42 @@ describe("live IndexedDB record encryption", () => {
     await expect(database.settings.get("main")).rejects.toThrow(/authentication/i);
   });
 
+  it("supports indexed key-only lookups and collection modifications without leaking plaintext", async () => {
+    const key = new Uint8Array(32).fill(31);
+    database = new AInvoiceDatabase(databaseName, true, () => key, () => true);
+    await database.open();
+    await database.products.put({
+      id: 8,
+      name: "Sensitive Product Name",
+      sku: "SECRET-SKU-8",
+      unit: "pcs",
+      salePriceMinor: 1000,
+      purchasePriceMinor: 500,
+      taxRateBps: 0,
+      stockQuantityMilli: 10,
+      reorderLevelMilli: 0,
+      trackStock: true,
+      active: true,
+      createdAt: 1,
+      updatedAt: 1
+    });
+
+    const keys = await database.products.where("active").equals(true).primaryKeys();
+    expect(keys).toEqual([8]);
+    expect((await database.products.where("active").equals(true).toArray())[0].name)
+      .toBe("Sensitive Product Name");
+
+    await database.products.where("active").equals(true).modify(product => {
+      product.name = "Changed Private Product";
+    });
+    expect((await database.products.get(8))?.name).toBe("Changed Private Product");
+
+    const raw = JSON.stringify(await readRawRows("products"));
+    expect(raw).not.toContain("Sensitive Product Name");
+    expect(raw).not.toContain("Changed Private Product");
+    expect(raw).not.toContain("SECRET-SKU-8");
+  });
+
   it("uses a fresh nonce for every record write and generates a 256-bit recovery key", async () => {
     const key = new Uint8Array(32).fill(23);
     database = new AInvoiceDatabase(databaseName, true, () => key, () => true);

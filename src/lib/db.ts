@@ -419,19 +419,28 @@ function snapshotHasRecords(snapshot: LegacySnapshot): boolean {
 }
 
 async function readSnapshot(database: AInvoiceDatabase): Promise<LegacySnapshot> {
-  const [
-    invoices, settings, products, customers, payments, suppliers, purchases,
-    supplierPayments, stockMovements, auditEvents
-  ] = await Promise.all([
-    database.invoices.toArray(), database.settings.toArray(), database.products.toArray(),
-    database.customers.toArray(), database.payments.toArray(), database.suppliers.toArray(),
-    database.purchases.toArray(), database.supplierPayments.toArray(),
-    database.stockMovements.toArray(), database.auditEvents.toArray()
-  ]);
-  return {
-    invoices, settings, products, customers, payments, suppliers, purchases,
-    supplierPayments, stockMovements, auditEvents
-  };
+  return database.transaction(
+    "r",
+    [
+      database.invoices, database.settings, database.products, database.customers, database.payments,
+      database.suppliers, database.purchases, database.supplierPayments, database.stockMovements, database.auditEvents
+    ],
+    async () => {
+      const [
+        invoices, settings, products, customers, payments, suppliers, purchases,
+        supplierPayments, stockMovements, auditEvents
+      ] = await Promise.all([
+        database.invoices.toArray(), database.settings.toArray(), database.products.toArray(),
+        database.customers.toArray(), database.payments.toArray(), database.suppliers.toArray(),
+        database.purchases.toArray(), database.supplierPayments.toArray(),
+        database.stockMovements.toArray(), database.auditEvents.toArray()
+      ]);
+      return {
+        invoices, settings, products, customers, payments, suppliers, purchases,
+        supplierPayments, stockMovements, auditEvents
+      };
+    }
+  );
 }
 
 function canonical(value: unknown): string {

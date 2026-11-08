@@ -174,14 +174,16 @@ export function installRecordEncryption(
               );
             },
             query(request: any) {
-              return table.query(request).then((result: any) => ({
-                ...result,
-                result: result.result.map(decrypt)
-              }));
+              return table.query(request).then((result: any) => {
+                // Key-only requests (for counts and key operations) are not
+                // record values and must never be passed to the decryptor.
+                if (request.values === false) return result;
+                return { ...result, result: result.result.map(decrypt) };
+              });
             },
             openCursor(request: any) {
               return table.openCursor(request).then((cursor: any) => {
-                if (!cursor) return cursor;
+                if (!cursor || request.values === false) return cursor;
                 return Object.create(cursor, {
                   continue: { get: () => cursor.continue },
                   continuePrimaryKey: { get: () => cursor.continuePrimaryKey },

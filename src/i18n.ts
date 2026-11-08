@@ -56,6 +56,7 @@ const messages = {
     vaultUnlockTitle:"Unlock encrypted business data", vaultUnlockHelp:"Enter the 64-character database recovery key. Your app PIN is requested after the encrypted database opens.",
     vaultOpen:"Unlock database", vaultWorking:"Unlocking and verifying…", vaultSetupAction:"Confirm key and encrypt data",
     vaultUnknownTitle:"Database not changed", vaultUnknownHelp:"AInvoice stopped rather than opening an unknown or unencrypted database. Do not delete browser or app storage. Keep any existing backup and seek support.",
+    vaultLegacyTabs:"The older plaintext database is still open in another AInvoice tab. This app remains locked to prevent conflicting writes. Close every older AInvoice tab/window, then enter the recovery key again so the old copy can be removed safely.",
     vaultErrorTitle:"Encrypted storage unavailable",
     unitPcs:"pcs", unitKg:"kg", unitLitre:"litre", unitHour:"hour", unitBox:"box", languageChanged:"Language changed."
   },
@@ -114,6 +115,7 @@ const messages = {
     vaultUnlockTitle:"एन्क्रिप्टेड व्यवसाय डेटा खोलें", vaultUnlockHelp:"64-अक्षर की डेटाबेस रिकवरी कुंजी डालें। डेटाबेस खुलने के बाद ऐप PIN मांगा जाएगा।",
     vaultOpen:"डेटाबेस खोलें", vaultWorking:"खोल रहे हैं और सत्यापन कर रहे हैं…", vaultSetupAction:"कुंजी की पुष्टि करें और डेटा एन्क्रिप्ट करें",
     vaultUnknownTitle:"डेटाबेस में बदलाव नहीं हुआ", vaultUnknownHelp:"AInvoice ने अज्ञात या अनएन्क्रिप्टेड डेटाबेस खोलने के बजाय प्रक्रिया रोक दी। ऐप या ब्राउज़र स्टोरेज न हटाएं। बैकअप सुरक्षित रखें और सहायता लें।",
+    vaultLegacyTabs:"पुराना अनएन्क्रिप्टेड डेटाबेस किसी दूसरे AInvoice टैब में खुला है। डेटा टकराव रोकने के लिए ऐप लॉक रहेगा। पुराने AInvoice टैब/विंडो बंद करें और सुरक्षित हटाने के लिए रिकवरी कुंजी फिर डालें।",
     vaultErrorTitle:"एन्क्रिप्टेड स्टोरेज उपलब्ध नहीं",
     unitPcs:"पीस", unitKg:"किलो", unitLitre:"लीटर", unitHour:"घंटा", unitBox:"बॉक्स", languageChanged:"भाषा बदल गई।"
   },
@@ -172,6 +174,7 @@ const messages = {
     vaultUnlockTitle:"एन्क्रिप्टेड व्यवसाय डेटा उघडा", vaultUnlockHelp:"64-अक्षरी डेटाबेस रिकव्हरी की टाका. डेटाबेस उघडल्यानंतर अॅप PIN विचारला जाईल.",
     vaultOpen:"डेटाबेस उघडा", vaultWorking:"उघडत आहे आणि तपासत आहे…", vaultSetupAction:"कीची पुष्टी करा आणि डेटा एन्क्रिप्ट करा",
     vaultUnknownTitle:"डेटाबेसमध्ये बदल केलेला नाही", vaultUnknownHelp:"अनोळखी किंवा अनएन्क्रिप्टेड डेटाबेस उघडण्याऐवजी AInvoice थांबले. अॅप किंवा ब्राउझर स्टोरेज हटवू नका. जुना बॅकअप जतन ठेवा आणि मदत घ्या.",
+    vaultLegacyTabs:"जुना अनएन्क्रिप्टेड डेटाबेस दुसऱ्या AInvoice टॅबमध्ये उघडा आहे. विसंगत नोंदी टाळण्यासाठी अॅप लॉक राहील. सर्व जुने AInvoice टॅब/विंडो बंद करा आणि जुनी प्रत सुरक्षितपणे हटवण्यासाठी रिकव्हरी की पुन्हा टाका.",
     vaultErrorTitle:"एन्क्रिप्टेड स्टोरेज उपलब्ध नाही",
     unitPcs:"नग", unitKg:"किलो", unitLitre:"लिटर", unitHour:"तास", unitBox:"बॉक्स", languageChanged:"भाषा बदलली."
   }

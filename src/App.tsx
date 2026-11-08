@@ -163,10 +163,18 @@ export default function App() {
       const legacyRemoved = kind === "setup"
         ? await setupEncryptedDatabase(recoveryKey)
         : await unlockEncryptedDatabase(recoveryKey);
-      setVaultWarning(legacyRemoved ? "" : "The encrypted copy was verified, but the old local database is still open in another tab or process. Close other AInvoice windows and lock/unlock again to retry secure deletion.");
       setRecoveryConfirmation("");
       setRecoveryInput("");
       setGeneratedRecoveryKey("");
+      if (!legacyRemoved) {
+        // Never permit writes to the new database while an older plaintext
+        // copy may still be open in another tab and accepting writes.
+        lockEncryptedDatabase();
+        setVaultError(t("vaultLegacyTabs"));
+        setVaultState("locked");
+        return;
+      }
+      setVaultWarning("");
       setVaultState("ready");
       setUnlocked(false);
     } catch (error) {
