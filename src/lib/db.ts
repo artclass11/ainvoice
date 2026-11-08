@@ -17,6 +17,8 @@ export interface InvoiceLine {
   taxableMinor: number;
   taxMinor: number;
   totalMinor: number;
+  /** Whether stock was deducted when this invoice was issued. */
+  stockTracked?: boolean;
 }
 
 export interface Invoice {
