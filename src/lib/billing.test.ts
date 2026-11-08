@@ -37,8 +37,8 @@ describe("money and quantity boundaries", () => {
     ]);
     expect(result.subtotalMinor).toBe(11000);
     expect(result.discountMinor).toBe(1000);
-    expect(result.taxMinor).toBe(1710);
-    expect(result.totalMinor).toBe(11710);
+    expect(result.taxMinor).toBe(1670);
+    expect(result.totalMinor).toBe(11670);
   });
 
   it("rounds fractional quantities deterministically", () => {

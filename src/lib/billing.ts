@@ -47,7 +47,7 @@ function isPaymentMethod(value: unknown): value is PaymentMethod {
 
 function assertSafeNonNegativeInteger(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error(label + " must be a non-negative whole number of minor units.");
+    throw new Error(label + " must be a non-negative safe integer.");
   }
 }
 
