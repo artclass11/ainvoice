@@ -14,6 +14,16 @@ This scorecard is an engineering assessment of the repository, not a certificati
 | Platform readiness | 4/10 | Windows/macOS/Linux early-access builds exist. Android ARM64 debug APK is a preview; permanent signing and physical-device QA remain. iOS signed distribution is not published. |
 | Automated testing | 8/10 | Domain, IndexedDB transaction, backup, migration and encryption regression coverage. Full Playwright flows, printer matrix, physical-device and performance suites remain. |
 
+## 2.0 readiness snapshot — 8 November 2026
+
+- **Released baseline:** 0.1.1 Early Access on `main`; its live IndexedDB/WebView records remain unencrypted at rest.
+- **Encryption candidate:** draft [PR #9](https://github.com/artclass11/ainvoice/pull/9), branch `security/live-encryption-poc`; 13 commits ahead of `main`, with no behind commits at review time. The PR is open, unmerged and has no submitted review.
+- **Latest verified candidate commit:** [`9231e866ec9a`](https://github.com/artclass11/ainvoice/commit/9231e866ec9a0c1a467dc82f4befb7d3b1af176e).
+- **Latest CI:** [run 42491034843](https://github.com/artclass11/ainvoice/actions/runs/42491034843) passed type-checking, unit/integration tests, production build, production dependency audit and native Linux/Tauri compilation.
+- **Latest CodeQL:** [run 42491034844](https://github.com/artclass11/ainvoice/actions/runs/42491034844) passed JavaScript/TypeScript analysis.
+- **What these checks do not prove:** no independent cryptographic audit, penetration test, raw browser/WebView profile scan, physical-device migration/restore exercise or signed cross-platform 2.0 release has been completed.
+- **Release decision:** keep PR #9 in draft and keep the public version at 0.1.1. Do not merge or publish 2.0 until the acceptance gates in [RELEASE_2.0.md](./RELEASE_2.0.md) pass.
+
 ## Recent improvements
 
 - Billing uses exact thousandth quantities and integer minor units with bounded arithmetic.
