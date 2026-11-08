@@ -18,6 +18,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+          cache-dependency-path: package.json
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -57,7 +59,23 @@ jobs:
           printf 'keyAlias=%s\npassword=%s\nstoreFile=%s\n' "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/ainvoice-android/upload-keystore.jks" > src-tauri/gen/android/keystore.properties
           python scripts/patch-android-signing.py
       - name: Build signed APKs
-        run: pnpm tauri android build --apk --split-per-abi
+        shell: bash
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          export ANDROID_NDK_HOME="$NDK_HOME"
+          export ANDROID_NDK_ROOT="$NDK_HOME"
+          test -d "$NDK_HOME" || (echo "Pinned Android NDK was not installed." && exit 1)
+          for attempt in 1 2 3; do
+            echo "Android build attempt $attempt of 3"
+            if pnpm tauri android build --apk --split-per-abi; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep "$((attempt * 15))"
+            fi
+          done
+          echo "Android build failed after three attempts."
+          exit 1
       - name: Upload APKs
         uses: actions/upload-artifact@v7
         with:
