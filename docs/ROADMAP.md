@@ -12,6 +12,7 @@ Roadmap items are targets, not claims that all features are already complete.
 - [x] Multi-item invoice creation, discount, tax snapshot, payment capture and partial-payment status.
 - [x] Tracked stock decrement and low-stock warnings.
 - [x] Customer/product maintenance, payment book, reports and invoice print view.
+- [x] Supplier book, purchase records with cost/tax snapshots, transactional tracked-stock receipts, supplier payments, supplier balances and restricted unpaid-purchase voids.
 - [x] AES-256-GCM password-encrypted backup export/restore.
 - [x] Tauri v2 native app project for desktop/mobile targets.
 - [x] Desktop tagged-release pipeline and manually signed mobile build workflows.
@@ -23,7 +24,8 @@ Roadmap items are targets, not claims that all features are already complete.
 - [ ] Add invoice sequence and print-template settings, receipts and customer statements.
 - [ ] Add CSV imports with preview, validation and duplicate resolution.
 - [ ] Test backup/restore with large data sets and migration from each released schema.
-- [ ] Add purchase entries, supplier book, stock receipts and supplier balances.
+- [x] Add the first supplier/purchase ledger, stock receipts and purchase-linked supplier payments.
+- [ ] Add supplier opening balances, purchase returns/refunds, supplier debit notes and settlement across multiple purchase documents.
 - [ ] Add sales returns, purchase returns, refunds and credit notes.
 
 ## Stage 2 — accounting and tax depth

@@ -51,10 +51,17 @@ No account, email, phone number, cloud signup or payment card is required for lo
 - Outstanding balance and transaction history.
 - Credit limit and due date are optional controls. A positive credit limit includes the opening receivable and all unpaid issued invoices; zero means no limit is configured. A sale that increases exposure beyond the limit is blocked inside the invoice transaction.
 
+### Supplier purchase
+- Maintain supplier name, phone, email, address, tax ID and active status.
+- Record supplier purchase documents with product/service lines, quantity, unit cost, discounts, tax snapshot, supplier identity and a unique purchase number.
+- Receive tracked stock in the same transaction as the purchase record; record supplier payments against purchase balances and retain an immutable purchase snapshot.
+- Only unpaid purchases can currently be voided, and only when all received stock remains available. Voiding adds a linked reversing stock movement.
+- First-stage limitation: no supplier opening balances, purchase returns to suppliers, supplier refunds, debit notes or supplier settlement across multiple bills yet.
+
 ### Inventory
 - Optional from setup; do not block billing when stock is not enabled.
 - SKU/barcode, unit, purchase price, sale price, tax category and reorder threshold.
-- Stock movements must be traceable to purchase, sale, return or adjustment events.
+- Stock movements must be traceable to purchase, sale, return or adjustment events; purchase receipts and permitted purchase voids are linked to source documents.
 - Prevent silent negative stock; allow a configurable warning/permission.
 
 ### Reporting

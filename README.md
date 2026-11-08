@@ -37,6 +37,7 @@ See [PLATFORMS.md](./docs/PLATFORMS.md) for platform details and installation/bu
 - Partial payments, cash/UPI/bank/card/other payment methods and a cash-book view.
 - Stock decrement on tracked-item sales; stock restoration when an unpaid invoice is voided.
 - Invoice search, print layout, basic sales/collections reports and low-stock count.
+- Supplier book, purchase documents, tracked-stock receipts, supplier payments and supplier payable balances; unpaid purchase voiding is restricted to unused received stock.
 - Audit events for core local business changes.
 - Password-encrypted backup export and restore using AES-256-GCM.
 
@@ -102,7 +103,7 @@ AInvoice is in **early development**, not yet a production-ready accounting or t
 - The PIN is an app-entry gate, not database encryption.
 - Live browser/WebView IndexedDB data is not automatically encrypted at rest.
 - Exported backup files are encrypted, but losing the backup password makes the backup unrecoverable.
-- Multi-user permissions, branch/tenant isolation, encrypted multi-device sync, supplier/purchase ledgers, refunds/credit notes, full accounting controls and independent security testing are not complete.
+- First-stage supplier and purchase ledgers are implemented, but supplier opening balances, supplier returns/refunds, debit notes, sales credit notes, double-entry accounting, bank reconciliation, multi-user permissions, branch/tenant isolation, encrypted multi-device sync and independent security testing are not complete.
 - GST, e-invoicing, IRN, e-way bills and other statutory features must not be treated as compliant until current official rules and qualified review are incorporated.
 
 Read [SECURITY.md](./SECURITY.md) and [ENTERPRISE_READINESS.md](./docs/ENTERPRISE_READINESS.md) before entering live business records.
