@@ -42,7 +42,7 @@ const messages = {
     supplierPayables:"Supplier payables", supplierPayment:"Supplier payments", makeSupplierPayment:"Record supplier payment",
     purchaseHelp:"Record a supplier bill and receive stock in one step.", manualSupplier:"Enter supplier name",
     purchaseItems:"Purchase items", manualItem:"Manual item / service", unitCost:"Unit cost", purchaseTotal:"Purchase total",
-    savePurchase:"Save & receive stock", purchaseSaved:"Purchase recorded and stock received.", supplierSaved:"Supplier saved.",
+    savePurchase:"Save & receive stock", purchaseSaved:"Purchase recorded and stock received.", supplierSaved:"Supplier saved.", saveSupplier:"Save supplier",
     purchaseVoided:"Purchase voided and stock reversed.", voidPurchase:"Void purchase", purchaseVoidReason:"Enter a reason to void this unpaid purchase.",
     supplierPaymentSaved:"Supplier payment recorded.",
     unitPcs:"pcs", unitKg:"kg", unitLitre:"litre", unitHour:"hour", unitBox:"box", languageChanged:"Language changed."
@@ -88,7 +88,7 @@ const messages = {
     supplierPayables:"आपूर्तिकर्ता को देय", supplierPayment:"आपूर्तिकर्ता भुगतान", makeSupplierPayment:"आपूर्तिकर्ता भुगतान दर्ज करें",
     purchaseHelp:"आपूर्तिकर्ता का बिल दर्ज करें और स्टॉक प्राप्त करें।", manualSupplier:"आपूर्तिकर्ता का नाम लिखें",
     purchaseItems:"खरीदे गए आइटम", manualItem:"मैनुअल आइटम / सेवा", unitCost:"खरीद लागत", purchaseTotal:"खरीद कुल",
-    savePurchase:"सेव करें और स्टॉक प्राप्त करें", purchaseSaved:"खरीद दर्ज हुई और स्टॉक प्राप्त हुआ।", supplierSaved:"आपूर्तिकर्ता सेव हुआ।",
+    savePurchase:"सेव करें और स्टॉक प्राप्त करें", purchaseSaved:"खरीद दर्ज हुई और स्टॉक प्राप्त हुआ।", supplierSaved:"आपूर्तिकर्ता सेव हुआ।", saveSupplier:"आपूर्तिकर्ता सेव करें",
     purchaseVoided:"खरीद रद्द हुई और स्टॉक वापस किया गया।", voidPurchase:"खरीद रद्द करें", purchaseVoidReason:"इस अवैतनिक खरीद को रद्द करने का कारण लिखें।",
     supplierPaymentSaved:"आपूर्तिकर्ता भुगतान दर्ज हुआ।",
     unitPcs:"पीस", unitKg:"किलो", unitLitre:"लीटर", unitHour:"घंटा", unitBox:"बॉक्स", languageChanged:"भाषा बदल गई।"
@@ -134,7 +134,7 @@ const messages = {
     supplierPayables:"पुरवठादार देय", supplierPayment:"पुरवठादार पेमेंट", makeSupplierPayment:"पुरवठादार पेमेंट नोंदवा",
     purchaseHelp:"पुरवठादाराचे बिल नोंदवा आणि साठा प्राप्त करा.", manualSupplier:"पुरवठादाराचे नाव लिहा",
     purchaseItems:"खरेदी केलेल्या वस्तू", manualItem:"मॅन्युअल वस्तू / सेवा", unitCost:"खरेदी खर्च", purchaseTotal:"खरेदी एकूण",
-    savePurchase:"जतन करा आणि साठा प्राप्त करा", purchaseSaved:"खरेदी नोंदली आणि साठा प्राप्त झाला.", supplierSaved:"पुरवठादार जतन झाला.",
+    savePurchase:"जतन करा आणि साठा प्राप्त करा", purchaseSaved:"खरेदी नोंदली आणि साठा प्राप्त झाला.", supplierSaved:"पुरवठादार जतन झाला.", saveSupplier:"पुरवठादार जतन करा",
     purchaseVoided:"खरेदी रद्द झाली आणि साठा परत केला.", voidPurchase:"खरेदी रद्द करा", purchaseVoidReason:"ही न भरलेली खरेदी रद्द करण्याचे कारण लिहा.",
     supplierPaymentSaved:"पुरवठादार पेमेंट नोंदवले.",
     unitPcs:"नग", unitKg:"किलो", unitLitre:"लिटर", unitHour:"तास", unitBox:"बॉक्स", languageChanged:"भाषा बदलली."
