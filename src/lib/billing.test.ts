@@ -49,6 +49,18 @@ describe("money and quantity boundaries", () => {
     expect(result.subtotalMinor).toBe(114);
   });
 
+  it("rejects item fields that exceed encrypted-backup limits", () => {
+    expect(() => calculateInvoiceTotals([
+      { description: "x".repeat(201), quantity: 1, unitPriceMinor: 100, taxRateBps: 0 }
+    ])).toThrow(/description must be 200 characters/);
+    expect(() => calculateInvoiceTotals([
+      { description: "Part", sku: "x".repeat(65), quantity: 1, unitPriceMinor: 100, taxRateBps: 0 }
+    ])).toThrow(/Item code must be 64 characters/);
+    expect(() => calculateInvoiceTotals([
+      { description: "Part", unit: "x".repeat(25), quantity: 1, unitPriceMinor: 100, taxRateBps: 0 }
+    ])).toThrow(/Unit must be 24 characters/);
+  });
+
   it("rejects zero, negative and over-precision quantities", () => {
     for (const quantity of [0, -1, 1.0005, 1_000_001]) {
       expect(() => calculateInvoiceTotals([
