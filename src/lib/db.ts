@@ -127,7 +127,7 @@ export interface DeviceSettings {
   updatedAt: number;
 }
 
-class AInvoiceDatabase extends Dexie {
+export class AInvoiceDatabase extends Dexie {
   invoices!: Table<Invoice, number>;
   settings!: Table<DeviceSettings, string>;
   products!: Table<Product, number>;
@@ -136,8 +136,8 @@ class AInvoiceDatabase extends Dexie {
   stockMovements!: Table<StockMovement, number>;
   auditEvents!: Table<AuditEvent, number>;
 
-  constructor() {
-    super("ainvoice-local");
+  constructor(databaseName = "ainvoice-local") {
+    super(databaseName);
     this.version(1).stores({
       invoices: "++id,&invoiceNo,dateISO,customerName,paymentStatus,status",
       settings: "id"
