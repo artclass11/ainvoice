@@ -18,8 +18,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
-          cache-dependency-path: package.json
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -43,6 +41,23 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Initialize Android project
         run: pnpm tauri android init --ci
+      - name: Increase Gradle wrapper download timeout
+        shell: bash
+        run: |
+          WRAPPER_PROPERTIES="src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties"
+          test -f "$WRAPPER_PROPERTIES" || (echo "Generated Gradle wrapper properties not found." && exit 1)
+          if grep -q '^networkTimeout=' "$WRAPPER_PROPERTIES"; then
+            sed -i 's/^networkTimeout=.*/networkTimeout=120000/' "$WRAPPER_PROPERTIES"
+          else
+            echo 'networkTimeout=120000' >> "$WRAPPER_PROPERTIES"
+          fi
+      - name: Cache generated Gradle wrapper and dependencies
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
       - name: Generate Android icons
         run: pnpm tauri icon public/icon.svg
       - name: Configure Android signing
