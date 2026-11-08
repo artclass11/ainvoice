@@ -87,6 +87,6 @@ describe("Pro account statements", () => {
   it("neutralizes formula-leading account names in spreadsheet exports", () => {
     const unsafe = { ...customer, name: "=HYPERLINK(\"https://unsafe.example\")" };
     const csv = createCustomerStatementCsv(unsafe, [], [], "INR");
-    expect(csv).toContain(""'=HYPERLINK");
+    expect(csv).toContain('"\'=HYPERLINK');
   });
 });
