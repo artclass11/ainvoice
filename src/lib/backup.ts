@@ -607,7 +607,11 @@ export async function createEncryptedBackup(password: string): Promise<Blob> {
       schemaVersion: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
       tables: {
-        settings: await db.settings.toArray(),
+        settings: (await db.settings.toArray()).map((settings) => ({
+          ...settings,
+          purchasePrefix: settings.purchasePrefix ?? "PUR",
+          purchaseSequence: settings.purchaseSequence ?? 0
+        })),
         invoices: await db.invoices.toArray(),
         products: await db.products.toArray(),
         customers: await db.customers.toArray(),
