@@ -109,7 +109,7 @@ export default function App() {
   const issued = invoices.filter(x => x.status === "issued");
   const todayBills = issued.filter(x => x.dateISO === todayISO());
   const todaySales = todayBills.reduce((a,x)=>a+x.totalMinor,0);
-  const due = issued.reduce((a,x)=>a+Math.max(0,x.totalMinor-x.paidMinor),0);
+  const due = customers.reduce((a,x)=>a+x.openingBalanceMinor,0) + issued.reduce((a,x)=>a+Math.max(0,x.totalMinor-x.paidMinor),0);
   const receivedToday = payments.filter(x => new Date(x.paidAt).toLocaleDateString("en-CA") === todayISO()).reduce((a,x)=>a+x.amountMinor,0);
   const monthSales = issued.filter(x => x.dateISO.startsWith(todayISO().slice(0,7))).reduce((a,x)=>a+x.totalMinor,0);
   const lowStock = products.filter(x=>x.active&&x.trackStock&&x.stockQuantityMilli<=x.reorderLevelMilli).length;
