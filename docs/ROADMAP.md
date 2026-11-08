@@ -2,6 +2,10 @@
 
 Roadmap items are targets, not claims that every feature is already released.
 
+## Major release target — AInvoice 2.0.0
+
+The 2.0.0 target is a production-readiness milestone, not the current app version. The repository remains on 0.1.1 Early Access until the acceptance criteria in [RELEASE_2.0.md](./RELEASE_2.0.md) are complete. The main blockers are independent review and cross-platform validation of live storage encryption, migration/recovery, accounting/tax correctness, signed device releases and operational security.
+
 ## Foundation — implemented in the current source milestone
 
 - [x] Public Apache-2.0 repository and contributor policy.
