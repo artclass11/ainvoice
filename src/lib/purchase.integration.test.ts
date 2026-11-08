@@ -111,6 +111,16 @@ describe("purchase and supplier ledger workflows", () => {
       method: "bank",
       reference: "BANK-REF-1"
     });
+
+    // Issued purchase documents retain their supplier, item and cost snapshots
+    // even when the live master records are later edited.
+    await db.suppliers.update(supplierId, { name: "Renamed Supplier" });
+    await db.products.update(productId, { name: "Renamed Item", purchasePriceMinor: 9000 });
+    const savedPurchase = await db.purchases.get(purchase.id!);
+    expect(savedPurchase?.supplierName).toBe("Reliable Supplies");
+    expect(savedPurchase?.lines[0].description).toBe("Purchase item");
+    expect(savedPurchase?.lines[0].unitCostMinor).toBe(5000);
+    expect(savedPurchase?.totalMinor).toBe(7500);
   });
 
   it("reconciles supplier payments and blocks overpayment", async () => {

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, ShoppingCart, Truck, Users, Wallet, X } from "lucide-react";
-import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product, type Purchase, type Supplier, type SupplierPayment } from "./lib/db";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, Eye, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, ShoppingCart, Truck, Users, Wallet, X } from "lucide-react";
+import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product, type Purchase, type Supplier, type SupplierPayment, type StockMovement } from "./lib/db";
 import { calculateInvoiceTotals, createInvoice, createPurchase, parseMoneyToMinor, recordPayment, recordSupplierPayment, saveCustomer, saveProduct, saveSupplier, voidInvoice, voidPurchase, type DraftLineInput } from "./lib/billing";
 import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/security";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
 import { translate, type Locale, type MessageKey } from "./i18n";
 
 type Page = "dashboard" | "invoices" | "products" | "customers" | "purchases" | "suppliers" | "cashBook" | "reports" | "settings";
-type Modal = "bill" | "product" | "customer" | "payment" | "invoice" | "purchase" | "supplier" | "supplierPayment" | null;
+type Modal = "bill" | "product" | "customer" | "payment" | "invoice" | "purchase" | "supplier" | "supplierPayment" | "purchaseDetails" | null;
 const nav: { id: Page; key: MessageKey; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", key: "dashboard", icon: LayoutDashboard },
   { id: "invoices", key: "invoices", icon: FileText },
@@ -37,6 +37,7 @@ export default function App() {
   const [suppliers,setSuppliers] = useState<Supplier[]>([]);
   const [purchases,setPurchases] = useState<Purchase[]>([]);
   const [supplierPayments,setSupplierPayments] = useState<SupplierPayment[]>([]);
+  const [stockMovements,setStockMovements] = useState<StockMovement[]>([]);
   const [events,setEvents] = useState<AuditEvent[]>([]);
   const [modal,setModal] = useState<Modal>(null);
   const [pickedInvoice,setPickedInvoice] = useState<Invoice>();
@@ -61,12 +62,14 @@ export default function App() {
       db.suppliers.orderBy("name").toArray(),
       db.purchases.orderBy("createdAt").reverse().toArray(),
       db.supplierPayments.orderBy("paidAt").reverse().toArray(),
+      db.stockMovements.orderBy("createdAt").reverse().toArray(),
       db.auditEvents.orderBy("createdAt").reverse().limit(20).toArray(),
       db.settings.get("main")
     ]);
     setInvoices(values[0]); setProducts(values[1]); setCustomers(values[2]); setPayments(values[3]);
-    setSuppliers(values[4]); setPurchases(values[5]); setSupplierPayments(values[6]); setEvents(values[7]);
-    if (values[8]) setSettings(values[8]);
+    setSuppliers(values[4]); setPurchases(values[5]); setSupplierPayments(values[6]);
+    setStockMovements(values[7]); setEvents(values[8]);
+    if (values[9]) setSettings(values[9]);
   }
   useEffect(() => {
     let alive = true;
@@ -252,7 +255,7 @@ export default function App() {
           </div></section>}
         {page==="purchases"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">SUPPLY CHAIN</div><h1>{t("purchases")}</h1><p>{purchases.length} · {t("supplierPayables")}: {fmt(supplierPayables)}</p></div><button className="primary-button" onClick={()=>setModal("purchase")}><Plus size={17}/>{t("newPurchase")}</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{visiblePurchases.length} {t("purchases")}</span></div>
-            <PurchaseTable rows={visiblePurchases} t={t} fmt={fmt} onPay={x=>{setPickedPurchase(x);setModal("supplierPayment");}} onVoid={handleVoidPurchase}/>
+            <PurchaseTable rows={visiblePurchases} t={t} fmt={fmt} onView={x=>{setPickedPurchase(x);setModal("purchaseDetails");}} onPay={x=>{setPickedPurchase(x);setModal("supplierPayment");}} onVoid={handleVoidPurchase}/>
           </div></section>}
         {page==="suppliers"&&<section className="page-section"><div className="page-heading compact"><div><div className="eyebrow">RELATIONSHIPS</div><h1>{t("suppliers")}</h1><p>{suppliers.length} · {t("supplierPayables")}: {fmt(supplierPayables)}</p></div><button className="primary-button" onClick={()=>{setPickedSupplier(undefined);setModal("supplier");}}><Plus size={17}/>{t("addSupplier")}</button></div>
           <div className="panel list-panel"><div className="list-toolbar"><div className="search-box"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t("search")}/></div><span>{suppliers.length} {t("suppliers")}</span></div>
@@ -272,6 +275,7 @@ export default function App() {
     {modal==="customer"&&<CustomerModal locale={locale} customer={pickedCustomer} onClose={()=>setModal(null)} onSaved={()=>done(t("customerSaved"))}/>}
     {modal==="supplier"&&<SupplierModal locale={locale} supplier={pickedSupplier} onClose={()=>setModal(null)} onSaved={()=>done(t("supplierSaved"))}/>}
     {modal==="purchase"&&<PurchaseModal locale={locale} products={products.filter(x=>x.active)} suppliers={suppliers.filter(x=>x.active)} fmt={fmt} onClose={()=>setModal(null)} onSaved={()=>done(t("purchaseSaved"))}/>}
+    {modal==="purchaseDetails"&&pickedPurchase&&<PurchaseDetailModal purchase={pickedPurchase} payments={supplierPayments.filter(x=>x.purchaseId===pickedPurchase.id)} movements={stockMovements.filter(x=>x.referenceType==="purchase"&&x.referenceId===pickedPurchase.id)} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onPay={()=>setModal("supplierPayment")}/>}
     {modal==="supplierPayment"&&pickedPurchase&&<SupplierPaymentModal purchase={pickedPurchase} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onSaved={()=>done(t("supplierPaymentSaved"))}/>}
     {modal==="payment"&&pickedInvoice&&<PaymentModal invoice={pickedInvoice} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onSaved={()=>done(t("paymentSaved"))}/>}
     {modal==="invoice"&&pickedInvoice&&<InvoiceModal invoice={pickedInvoice} settings={settings} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onPay={()=>setModal("payment")} onVoided={()=>done(t("invoiceVoided"))}/>}
@@ -304,12 +308,12 @@ function CustomerTable({rows,invoices,t,fmt,onEdit}:{rows:Customer[];invoices:In
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("customer")}</th><th>{t("phone")}</th><th>{t("taxId")}</th><th>{t("receivables")}</th><th>{t("actions")}</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={5}><div className="empty-state"><div className="empty-icon"><Users size={22}/></div><strong>{t("noCustomers")}</strong></div></td></tr>:rows.map(c=>{const balance=c.openingBalanceMinor+invoices.filter(i=>i.customerId===c.id&&i.status==="issued").reduce((a,i)=>a+Math.max(0,i.totalMinor-i.paidMinor),0);return <tr key={c.id}><td><strong>{c.name}</strong><small className="cell-sub">{c.email}</small></td><td>{c.phone||"—"}</td><td>{c.taxId||"—"}</td><td className="amount-cell">{fmt(balance)}</td><td><button className="row-action" onClick={()=>onEdit(c)}><Settings2 size={14}/></button></td></tr>;})}</tbody></table></div>;
 }
 
-function PurchaseTable({rows,t,fmt,onPay,onVoid}:{rows:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onPay:(x:Purchase)=>void;onVoid:(x:Purchase)=>void}) {
+function PurchaseTable({rows,t,fmt,onView,onPay,onVoid}:{rows:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onView:(x:Purchase)=>void;onPay:(x:Purchase)=>void;onVoid:(x:Purchase)=>void}) {
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("purchaseNo")}</th><th>{t("supplier")}</th><th>{t("date")}</th><th>{t("amount")}</th><th>{t("paid")}</th><th>{t("status")}</th><th>{t("actions")}</th></tr></thead><tbody>
     {rows.length===0?<tr><td colSpan={7}><div className="empty-state"><div className="empty-icon"><ShoppingCart size={22}/></div><strong>{t("noPurchases")}</strong><span>{t("newPurchase")}</span></div></td></tr>:rows.map(x=><tr key={x.id} className={x.status==="void"?"void-row":""}>
       <td><strong>{x.purchaseNo}</strong></td><td>{x.supplierName}</td><td>{dateLabel(x.dateISO)}</td><td className="amount-cell">{fmt(x.totalMinor)}</td><td>{fmt(x.paidMinor)}</td>
       <td><span className={"status-pill "+(x.status==="void"?"void":x.paymentStatus)}><span/>{t(x.status==="void"?"void":x.paymentStatus)}</span></td>
-      <td><div className="row-actions">{x.status==="received"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("makeSupplierPayment")}><Wallet size={14}/></button>}{x.status==="received"&&x.paidMinor===0&&<button className="row-action" onClick={()=>onVoid(x)} title={t("voidPurchase")}><X size={14}/></button>}</div></td>
+      <td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewPurchase")} aria-label={t("viewPurchase")}><Eye size={14}/></button>{x.status==="received"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("makeSupplierPayment")}><Wallet size={14}/></button>}{x.status==="received"&&x.paidMinor===0&&<button className="row-action" onClick={()=>onVoid(x)} title={t("voidPurchase")}><X size={14}/></button>}</div></td>
     </tr>)}</tbody></table></div>;
 }
 function SupplierTable({rows,purchases,t,fmt,onEdit}:{rows:Supplier[];purchases:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Supplier)=>void}) {
@@ -475,6 +479,30 @@ function SupplierModal({locale,supplier,onClose,onSaved}:{locale:Locale;supplier
     <label className="check-row"><input name="active" type="checkbox" defaultChecked={supplier?.active??true}/><span>{t("active")}</span></label>
     {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveSupplier")}</button></div>
   </form></ModalFrame>;
+}
+
+function PurchaseDetailModal({purchase,payments,movements,locale,fmt,onClose,onPay}:{purchase:Purchase;payments:SupplierPayment[];movements:StockMovement[];locale:Locale;fmt:(v:number)=>string;onClose:()=>void;onPay:()=>void}) {
+  const t=(k:MessageKey)=>translate(locale,k);
+  const sellerName=purchase.businessNameSnapshot??"";
+  const sellerAddress=purchase.businessAddressSnapshot??"";
+  const sellerPhone=purchase.businessPhoneSnapshot??"";
+  const sellerTaxId=purchase.businessTaxIdSnapshot??"";
+  const due=Math.max(0,purchase.totalMinor-purchase.paidMinor);
+  const sortedPayments=[...payments].sort((a,b)=>a.paidAt-b.paidAt);
+  const sortedMovements=[...movements].sort((a,b)=>a.createdAt-b.createdAt);
+  return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow={purchase.purchaseNo} title={t("purchaseDetails")} subtitle={purchase.supplierName} onClose={onClose}/>
+    <div className="bill-print-area">
+      <div className="receipt-header"><div><h2>{sellerName||"AInvoice"}</h2>{sellerAddress&&<p>{sellerAddress}</p>}{sellerPhone&&<p>{sellerPhone}</p>}{sellerTaxId&&<p>{t("taxId")}: {sellerTaxId}</p>}</div><div className="receipt-brand">AInvoice</div></div>
+      <div className="receipt-meta"><span><strong>{t("purchaseNo")}:</strong> {purchase.purchaseNo}</span><span><strong>{t("date")}:</strong> {dateLabel(purchase.dateISO)}</span><span><strong>{t("supplier")}:</strong> {purchase.supplierName}</span><span><strong>{t("status")}:</strong> {t(purchase.status==="void"?"void":purchase.paymentStatus)}</span></div>
+      <div className="table-wrap"><table className="invoice-table receipt-table"><thead><tr><th>{t("item")}</th><th>{t("quantity")}</th><th>{t("unitCost")}</th><th>{t("discount")}</th><th>{t("tax")}</th><th>{t("amount")}</th></tr></thead><tbody>{purchase.lines.map((line,index)=><tr key={index}><td>{line.description}</td><td>{line.quantity} {line.unit}</td><td>{fmt(line.unitCostMinor)}</td><td>{fmt(line.discountMinor)}</td><td>{line.taxRateBps/100}%</td><td>{fmt(line.totalMinor)}</td></tr>)}</tbody></table></div>
+      <div className="receipt-totals"><div><span>{t("subtotal")}</span><strong>{fmt(purchase.subtotalMinor)}</strong></div><div><span>{t("discount")}</span><strong>{fmt(purchase.discountMinor)}</strong></div><div><span>{t("taxAmount")}</span><strong>{fmt(purchase.taxMinor)}</strong></div><div className="receipt-grand"><span>{t("purchaseTotal")}</span><strong>{fmt(purchase.totalMinor)}</strong></div><div><span>{t("alreadyPaid")}</span><strong>{fmt(purchase.paidMinor)}</strong></div><div><span>{t("amountDue")}</span><strong>{fmt(due)}</strong></div></div>
+      {purchase.notes&&<p className="receipt-note">{t("notes")}: {purchase.notes}</p>}
+      <div className="detail-history"><h3>{t("supplierPaymentHistory")}</h3>{sortedPayments.length===0?<p>{t("noSupplierPayments")}</p>:<table className="invoice-table receipt-table"><thead><tr><th>{t("date")}</th><th>{t("paymentMethod")}</th><th>{t("reference")}</th><th>{t("amount")}</th></tr></thead><tbody>{sortedPayments.map(payment=><tr key={payment.id}><td>{dateLabel(payment.paidAt)}</td><td>{t(payment.method)}</td><td>{payment.reference||"—"}</td><td>{fmt(payment.amountMinor)}</td></tr>)}</tbody></table>}</div>
+      <div className="detail-history"><h3>{t("stockReceiptHistory")}</h3>{sortedMovements.length===0?<p>{t("noStockMovements")}</p>:<table className="invoice-table receipt-table"><thead><tr><th>{t("date")}</th><th>{t("item")}</th><th>{t("stockMovement")}</th><th>{t("quantity")}</th></tr></thead><tbody>{sortedMovements.map(movement=><tr key={movement.id}><td>{dateLabel(movement.createdAt)}</td><td>{movement.productName}</td><td>{t(movement.type==="purchase"?"received":movement.type==="return"?"returned":"adjustment")}</td><td>{movement.quantityDeltaMilli/1000}</td></tr>)}</tbody></table>}</div>
+      <div className="receipt-foot">{t("purchaseDocumentCopy")}</div>
+    </div>
+    <div className="modal-actions print-actions"><button className="secondary-button" onClick={onClose}>{t("close")}</button>{purchase.status==="received"&&due>0&&<button className="secondary-button" onClick={onPay}><Wallet size={15}/>{t("makeSupplierPayment")}</button>}<button className="primary-button" onClick={()=>window.print()}><Printer size={15}/>{t("printPurchase")}</button></div>
+  </ModalFrame>;
 }
 
 function PurchaseModal({locale,products,suppliers,fmt,onClose,onSaved}:{locale:Locale;products:Product[];suppliers:Supplier[];fmt:(v:number)=>string;onClose:()=>void;onSaved:()=>void}) {
