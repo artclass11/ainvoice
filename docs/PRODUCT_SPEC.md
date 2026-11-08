@@ -49,7 +49,7 @@ No account, email, phone number, cloud signup or payment card is required for lo
 ### Customer and supplier book
 - Name, phone/email (optional), address and business tax number (optional and jurisdiction-aware).
 - Outstanding balance and transaction history.
-- Credit limit and due date are optional controls.
+- Credit limit and due date are optional controls. A positive credit limit includes the opening receivable and all unpaid issued invoices; zero means no limit is configured. A sale that increases exposure beyond the limit is blocked inside the invoice transaction.
 
 ### Inventory
 - Optional from setup; do not block billing when stock is not enabled.

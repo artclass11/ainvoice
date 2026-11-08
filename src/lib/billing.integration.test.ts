@@ -149,6 +149,66 @@ describe("transactional billing workflows", () => {
     expect(await db.payments.where("invoiceId").equals(invoice.id!).count()).toBe(1);
   });
 
+  it("enforces customer credit limits against opening balances and unpaid invoices", async () => {
+    const customerId = await saveCustomer({
+      name: "Credit customer",
+      phone: "",
+      email: "",
+      address: "",
+      taxId: "",
+      creditLimitMinor: 10000,
+      openingBalanceMinor: 2500,
+      active: true
+    });
+
+    const first = await createInvoice({
+      customerId,
+      customerName: "Ignored",
+      lines: [{ description: "Goods", quantity: 1, unitPriceMinor: 10000, taxRateBps: 0 }],
+      paidMinor: 2500
+    });
+    expect(first.totalMinor - first.paidMinor).toBe(7500);
+
+    // A fully paid cash sale does not increase the customer's credit exposure.
+    const cashSale = await createInvoice({
+      customerId,
+      customerName: "Ignored",
+      lines: [{ description: "Cash goods", quantity: 1, unitPriceMinor: 1000, taxRateBps: 0 }],
+      paidMinor: 1000
+    });
+    expect(cashSale.paymentStatus).toBe("paid");
+
+    await expect(createInvoice({
+      customerId,
+      customerName: "Ignored",
+      lines: [{ description: "Credit goods", quantity: 1, unitPriceMinor: 1, taxRateBps: 0 }]
+    })).rejects.toThrow(/credit limit exceeded/i);
+
+    expect(await db.invoices.count()).toBe(2);
+    expect((await db.settings.get("main"))?.invoiceSequence).toBe(2);
+  });
+
+  it("treats a zero customer credit limit as not configured", async () => {
+    const customerId = await saveCustomer({
+      name: "Unrestricted customer",
+      phone: "",
+      email: "",
+      address: "",
+      taxId: "",
+      creditLimitMinor: 0,
+      openingBalanceMinor: 500000,
+      active: true
+    });
+
+    const invoice = await createInvoice({
+      customerId,
+      customerName: "Ignored",
+      lines: [{ description: "Credit goods", quantity: 1, unitPriceMinor: 10000, taxRateBps: 0 }]
+    });
+
+    expect(invoice.paymentStatus).toBe("due");
+  });
+
   it("rolls back invoice number, stock and ledger writes when stock is insufficient", async () => {
     const productId = await makeProduct(2000);
 

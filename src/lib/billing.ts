@@ -269,6 +269,34 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
         throw new Error("Customer name must be 160 characters or fewer.");
       }
 
+      // A positive credit limit is active. A zero limit keeps this optional
+      // control disabled. Opening receivables and all issued invoice balances
+      // are included in the same transaction as the new invoice.
+      if (customer) {
+        assertSafeNonNegativeInteger(customer.creditLimitMinor, "Customer credit limit");
+        assertSafeNonNegativeInteger(customer.openingBalanceMinor, "Customer opening balance");
+        if (customer.creditLimitMinor > 0) {
+          const existingInvoices = await db.invoices.where("customerId").equals(customer.id!).toArray();
+          let currentOutstandingMinor = customer.openingBalanceMinor;
+          for (const existing of existingInvoices) {
+            if (existing.status !== "issued") continue;
+            assertSafeNonNegativeInteger(existing.totalMinor, "Existing bill total");
+            assertSafeNonNegativeInteger(existing.paidMinor, "Existing paid amount");
+            if (existing.paidMinor > existing.totalMinor) {
+              throw new Error("An existing bill has inconsistent payment data. Reconcile it before issuing another credit bill.");
+            }
+            currentOutstandingMinor += existing.totalMinor - existing.paidMinor;
+            assertSafeNonNegativeInteger(currentOutstandingMinor, "Customer outstanding balance");
+          }
+          const newOutstandingMinor = totals.totalMinor - paidMinor;
+          const projectedOutstandingMinor = currentOutstandingMinor + newOutstandingMinor;
+          assertSafeNonNegativeInteger(projectedOutstandingMinor, "Projected customer outstanding balance");
+          if (newOutstandingMinor > 0 && projectedOutstandingMinor > customer.creditLimitMinor) {
+            throw new Error("Customer credit limit exceeded. Receive a payment or increase the credit limit before issuing this bill.");
+          }
+        }
+      }
+
       const lineSnapshots: InvoiceLine[] = [];
       const stockMovementIds: number[] = [];
       for (const line of totals.lines) {

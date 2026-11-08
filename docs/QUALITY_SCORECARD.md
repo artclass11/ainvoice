@@ -19,6 +19,7 @@ This scorecard is an engineering assessment of the current repository state, not
 - Billing calculations now use exact thousandth quantities and integer minor units with bounded arithmetic.
 - Stock, invoice numbering, first payments and audit events commit in one IndexedDB transaction.
 - Existing payment history is reconciled before receiving another payment.
+- Positive customer credit limits are enforced transactionally against opening balances and unpaid issued invoices; fully paid sales do not increase exposure.
 - Invoice records retain the seller identity used when they were issued.
 - Database version migration upgrades older invoices, preserves historical paid totals, and backfills stock-sale movement links to the originating invoice.
 - New stock-sale movements now retain the source invoice ID; encrypted backup validation checks payment/customer identity and requires invoice-linked stock movements to resolve correctly.
