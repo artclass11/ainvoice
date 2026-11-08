@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { db, type DeviceSettings } from "./db";
-import { createInvoice, saveProduct } from "./billing";
+import { createInvoice, createPurchase, saveProduct, saveSupplier } from "./billing";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./backup";
 
 const PASSWORD = "correct-horse-battery-staple";
@@ -87,6 +87,67 @@ describe("encrypted business backups", () => {
     await expect(restoreEncryptedBackup(file, "wrong-password-value")).rejects.toThrow(/could not be decrypted/);
     expect((await db.settings.get("main"))?.businessName).toBe("Keep This Store");
     expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("round-trips supplier purchases, supplier payments and purchase stock movements", async () => {
+    const supplierId = await saveSupplier({
+      name: "Backup Supplier",
+      phone: "",
+      email: "",
+      address: "",
+      taxId: "",
+      active: true
+    });
+    const productId = await saveProduct({
+      name: "Backup Item",
+      sku: "BACKUP-ITEM",
+      unit: "pcs",
+      salePriceMinor: 10000,
+      purchasePriceMinor: 5000,
+      taxRateBps: 0,
+      stockQuantityMilli: 1000,
+      reorderLevelMilli: 0,
+      trackStock: true,
+      active: true
+    });
+    const purchase = await createPurchase({
+      supplierId,
+      supplierName: "",
+      lines: [{
+        productId,
+        description: "Backup Item",
+        sku: "BACKUP-ITEM",
+        unit: "pcs",
+        quantity: 2,
+        unitPriceMinor: 5000,
+        taxRateBps: 0
+      }],
+      paidMinor: 2500,
+      paymentMethod: "bank",
+      paymentReference: "BACKUP-REF"
+    });
+    const file = await makeBackupFile();
+
+    await db.suppliers.clear();
+    await db.purchases.clear();
+    await db.supplierPayments.clear();
+    await db.stockMovements.clear();
+    await db.products.update(productId, { stockQuantityMilli: 0 });
+
+    await restoreEncryptedBackup(file, PASSWORD);
+
+    expect(await db.suppliers.count()).toBe(1);
+    expect((await db.purchases.get(purchase.id!))?.purchaseNo).toBe(purchase.purchaseNo);
+    expect((await db.purchases.get(purchase.id!))?.paidMinor).toBe(2500);
+    expect(await db.supplierPayments.where("purchaseId").equals(purchase.id!).count()).toBe(1);
+    expect((await db.products.get(productId))?.stockQuantityMilli).toBe(3000);
+    const movement = (await db.stockMovements.where("referenceId").equals(purchase.id!).toArray())[0];
+    expect(movement).toMatchObject({
+      type: "purchase",
+      referenceType: "purchase",
+      quantityDeltaMilli: 2000,
+      note: purchase.purchaseNo
+    });
   });
 
   it("rejects payment records reassigned to a different customer", async () => {

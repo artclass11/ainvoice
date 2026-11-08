@@ -2,7 +2,7 @@ import { db } from "./db";
 import { calculateInvoiceTotals, getPaymentStatus, quantityToMilli } from "./billing";
 
 const BACKUP_FORMAT = "AINVOICE-ENCRYPTED-BACKUP";
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const ITERATIONS = 600_000;
 const MAX_BACKUP_BYTES = 250 * 1024 * 1024;
 const TABLE_NAMES = [
@@ -11,6 +11,9 @@ const TABLE_NAMES = [
   "products",
   "customers",
   "payments",
+  "suppliers",
+  "purchases",
+  "supplierPayments",
   "stockMovements",
   "auditEvents"
 ] as const;
@@ -98,7 +101,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   );
 }
 
-function validateBackupTables(rawTables: unknown): asserts rawTables is Record<BackupTableName, unknown[]> {
+function validateBackupTables(rawTables: unknown, schemaVersion: number): asserts rawTables is Record<BackupTableName, unknown[]> {
   if (!isRecord(rawTables)) fail("Tables are missing.");
   const tables = rawTables as Record<string, unknown>;
   const settingsRows = requireArray(tables.settings, "Settings", 1);
@@ -106,6 +109,9 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
   const productRows = requireArray(tables.products, "Product", 200_000);
   const customerRows = requireArray(tables.customers, "Customer", 200_000);
   const paymentRows = requireArray(tables.payments, "Payment", 500_000);
+  const supplierRows = requireArray(tables.suppliers ?? (schemaVersion === 1 ? [] : undefined), "Supplier", 200_000);
+  const purchaseRows = requireArray(tables.purchases ?? (schemaVersion === 1 ? [] : undefined), "Purchase", 100_000);
+  const supplierPaymentRows = requireArray(tables.supplierPayments ?? (schemaVersion === 1 ? [] : undefined), "Supplier payment", 500_000);
   const movementRows = requireArray(tables.stockMovements, "Stock movement", 1_000_000);
   const auditRows = requireArray(tables.auditEvents, "Audit event", 1_000_000);
 
@@ -120,6 +126,15 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
   if (!/^[A-Z]{2}$/.test(requireString(settings.countryCode, "Country", 2))) fail("Country code is invalid.");
   if (!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(requireString(settings.invoicePrefix, "Invoice prefix", 10))) fail("Invoice prefix is invalid.");
   requireSafeInteger(settings.invoiceSequence, "Invoice sequence");
+  if (schemaVersion >= 2) {
+    if (!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(requireString(settings.purchasePrefix, "Purchase prefix", 10))) {
+      fail("Purchase prefix is invalid.");
+    }
+    requireSafeInteger(settings.purchaseSequence, "Purchase sequence");
+  } else {
+    if (settings.purchasePrefix !== undefined && !/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(requireString(settings.purchasePrefix, "Purchase prefix", 10))) fail("Purchase prefix is invalid.");
+    if (settings.purchaseSequence !== undefined) requireSafeInteger(settings.purchaseSequence, "Purchase sequence");
+  }
   requireSafeInteger(settings.createdAt, "Business creation time");
   requireSafeInteger(settings.updatedAt, "Business update time");
   requireString(settings.address, "Business address", 1000);
@@ -179,6 +194,20 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     requireBoolean(value.active, "Customer active flag");
     requireSafeInteger(value.createdAt, "Customer creation time");
     requireSafeInteger(value.updatedAt, "Customer update time");
+  }
+
+  const supplierIds = new Set<number>();
+  for (const value of supplierRows) {
+    if (!isRecord(value)) fail("Supplier record is malformed.");
+    requireUniqueId(value, "Supplier", supplierIds);
+    if (!requireString(value.name, "Supplier name", 160).trim()) fail("Supplier name is empty.");
+    requireString(value.phone, "Supplier phone", 40);
+    requireString(value.email, "Supplier email", 254);
+    requireString(value.address, "Supplier address", 1000);
+    requireString(value.taxId, "Supplier tax ID", 80);
+    requireBoolean(value.active, "Supplier active flag");
+    requireSafeInteger(value.createdAt, "Supplier creation time");
+    requireSafeInteger(value.updatedAt, "Supplier update time");
   }
 
   const invoiceIds = new Set<number>();
@@ -302,8 +331,122 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     }
   }
 
+  const purchaseIds = new Set<number>();
+  const purchaseNos = new Set<string>();
+  const purchaseById = new Map<number, UnknownRecord>();
+  for (const value of purchaseRows) {
+    if (!isRecord(value)) fail("Purchase record is malformed.");
+    const id = requireUniqueId(value, "Purchase", purchaseIds);
+    const purchaseNo = requireString(value.purchaseNo, "Purchase number", 64);
+    if (!purchaseNo.trim() || purchaseNos.has(purchaseNo)) fail("Purchase number is empty or duplicated.");
+    purchaseNos.add(purchaseNo);
+    requireSafeInteger(value.createdAt, "Purchase creation time");
+    const dateISO = requireString(value.dateISO, "Purchase date", 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO) || Number.isNaN(Date.parse(dateISO + "T12:00:00"))) {
+      fail("Purchase date is invalid.");
+    }
+    requireString(value.supplierName, "Purchase supplier name", 160);
+    if (!String(value.supplierName).trim()) fail("Purchase supplier name is empty.");
+    if (value.supplierId !== undefined) {
+      const supplierId = requireSafeInteger(value.supplierId, "Purchase supplier ID", 1);
+      if (!supplierIds.has(supplierId)) fail("A purchase refers to a missing supplier.");
+    }
+    if (!Array.isArray(value.lines) || value.lines.length === 0 || value.lines.length > 500) {
+      fail("Purchase lines are missing or exceed the limit.");
+    }
+    const draftLines = value.lines.map((rawLine) => {
+      if (!isRecord(rawLine)) fail("Purchase line is malformed.");
+      requireString(rawLine.description, "Purchase item description", 200);
+      if (rawLine.productId !== undefined) {
+        const productId = requireSafeInteger(rawLine.productId, "Purchase product ID", 1);
+        if (!productIds.has(productId)) fail("A purchase refers to a missing product.");
+      }
+      if (rawLine.stockReceived !== undefined) requireBoolean(rawLine.stockReceived, "Purchase stock snapshot");
+      if (schemaVersion >= 2 && rawLine.stockReceived === undefined) fail("Purchase stock snapshot is missing.");
+      if (rawLine.sku !== undefined) requireString(rawLine.sku, "Purchase item SKU", 64);
+      requireString(rawLine.unit, "Purchase item unit", 24);
+      requireSafeInteger(rawLine.unitCostMinor, "Purchase unit cost");
+      requireSafeInteger(rawLine.discountMinor, "Purchase line discount");
+      return {
+        productId: rawLine.productId as number | undefined,
+        sku: rawLine.sku as string | undefined,
+        description: rawLine.description as string,
+        unit: rawLine.unit as string,
+        quantity: rawLine.quantity as number,
+        unitPriceMinor: rawLine.unitCostMinor as number,
+        discountMinor: rawLine.discountMinor as number,
+        taxRateBps: requireSafeInteger(rawLine.taxRateBps, "Purchase tax rate")
+      };
+    });
+    const calculated = calculateInvoiceTotals(draftLines);
+    const actualLines = value.lines as UnknownRecord[];
+    for (let index = 0; index < calculated.lines.length; index += 1) {
+      const expected = calculated.lines[index];
+      const actual = actualLines[index];
+      if (actual.taxableMinor !== expected.taxableMinor || actual.taxMinor !== expected.taxMinor ||
+          actual.totalMinor !== expected.totalMinor) {
+        fail("Purchase line totals do not match the stored calculation.");
+      }
+    }
+    const subtotalMinor = requireSafeInteger(value.subtotalMinor, "Purchase subtotal");
+    const discountMinor = requireSafeInteger(value.discountMinor, "Purchase discount");
+    const taxMinor = requireSafeInteger(value.taxMinor, "Purchase tax");
+    const totalMinor = requireSafeInteger(value.totalMinor, "Purchase total");
+    if (subtotalMinor !== calculated.subtotalMinor || discountMinor !== calculated.discountMinor ||
+        taxMinor !== calculated.taxMinor || totalMinor !== calculated.totalMinor) {
+      fail("Purchase totals do not match the purchase lines.");
+    }
+    const paidMinor = requireSafeInteger(value.paidMinor, "Purchase paid amount");
+    if (paidMinor > totalMinor) fail("Supplier payments exceed the purchase total.");
+    if (value.paymentStatus !== getPaymentStatus(paidMinor, totalMinor)) fail("Purchase payment status is inconsistent.");
+    if (value.status !== "received" && value.status !== "void") fail("Purchase status is invalid.");
+    if (value.status === "void" && paidMinor > 0) fail("A void purchase cannot contain unreconciled supplier payments.");
+    if (!/^[A-Z]{3}$/.test(requireString(value.currencyCode, "Purchase currency", 3))) fail("Purchase currency code is invalid.");
+    if (value.schemaVersion !== 1) fail("Purchase schema version is unsupported.");
+    if (value.businessNameSnapshot !== undefined) requireString(value.businessNameSnapshot, "Purchase seller name", 160);
+    if (value.businessPhoneSnapshot !== undefined) requireString(value.businessPhoneSnapshot, "Purchase seller phone", 40);
+    if (value.businessAddressSnapshot !== undefined) requireString(value.businessAddressSnapshot, "Purchase seller address", 1000);
+    if (value.businessTaxIdSnapshot !== undefined) requireString(value.businessTaxIdSnapshot, "Purchase seller tax ID", 80);
+    if (value.notes !== undefined) requireString(value.notes, "Purchase notes", 2000);
+    purchaseById.set(id, value);
+  }
+
+  const supplierPaymentIds = new Set<number>();
+  const supplierPaymentSums = new Map<number, number>();
+  for (const value of supplierPaymentRows) {
+    if (!isRecord(value)) fail("Supplier payment record is malformed.");
+    requireUniqueId(value, "Supplier payment", supplierPaymentIds);
+    const purchaseId = requireSafeInteger(value.purchaseId, "Supplier payment purchase ID", 1);
+    const purchase = purchaseById.get(purchaseId);
+    if (!purchase) fail("A supplier payment refers to a missing purchase.");
+    if (purchase.status === "void") fail("A void purchase cannot contain supplier payments.");
+    const amount = requireSafeInteger(value.amountMinor, "Supplier payment amount", 1);
+    if (typeof value.method !== "string" || !paymentMethods.includes(value.method)) fail("Supplier payment method is invalid.");
+    requireString(value.purchaseNo, "Supplier payment purchase number", 64);
+    requireString(value.supplierName, "Supplier payment supplier name", 160);
+    requireString(value.reference, "Supplier payment reference", 160);
+    requireString(value.note, "Supplier payment note", 1000);
+    requireSafeInteger(value.paidAt, "Supplier payment timestamp");
+    if (value.purchaseNo !== purchase.purchaseNo || value.supplierName !== purchase.supplierName ||
+        value.supplierId !== purchase.supplierId) {
+      fail("Supplier payment assignment does not match its purchase.");
+    }
+    if (value.supplierId !== undefined && !supplierIds.has(requireSafeInteger(value.supplierId, "Supplier payment supplier ID", 1))) {
+      fail("A supplier payment refers to a missing supplier.");
+    }
+    const sum = (supplierPaymentSums.get(purchaseId) ?? 0) + amount;
+    requireSafeInteger(sum, "Supplier payment history total");
+    supplierPaymentSums.set(purchaseId, sum);
+  }
+  for (const [id, purchase] of purchaseById) {
+    if ((supplierPaymentSums.get(id) ?? 0) !== purchase.paidMinor) {
+      fail("Supplier payment history does not reconcile with a purchase.");
+    }
+  }
+
   const movementIds = new Set<number>();
   const stockFlowByInvoice = new Map<number, { sales: Map<number, number>; returns: Map<number, number> }>();
+  const stockFlowByPurchase = new Map<number, { receipts: Map<number, number>; returns: Map<number, number> }>();
   for (const value of movementRows) {
     if (!isRecord(value)) fail("Stock movement is malformed.");
     requireUniqueId(value, "Stock movement", movementIds);
@@ -311,20 +454,28 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     if (!productIds.has(productId)) fail("A stock movement refers to a missing product.");
     requireString(value.productName, "Stock movement product name", 160);
     if (!["sale", "purchase", "return", "adjustment"].includes(String(value.type))) fail("Stock movement type is invalid.");
-    if (value.referenceType !== "invoice" && value.referenceType !== "manual") fail("Stock movement reference type is invalid.");
-    if (value.referenceType === "invoice" && value.referenceId === undefined) {
-      fail("An invoice stock movement is missing its invoice reference.");
+    if (!["invoice", "purchase", "manual"].includes(String(value.referenceType))) fail("Stock movement reference type is invalid.");
+    if (value.referenceType !== "manual" && value.referenceId === undefined) {
+      fail("A linked stock movement is missing its source document reference.");
     }
     if (value.referenceId !== undefined) {
       const referenceId = requireSafeInteger(value.referenceId, "Stock movement reference ID", 1);
-      if (value.referenceType === "invoice" && !invoiceIds.has(referenceId)) fail("A stock movement refers to a missing invoice.");
       if (value.referenceType === "invoice") {
+        if (!invoiceIds.has(referenceId)) fail("A stock movement refers to a missing invoice.");
         const sourceInvoice = invoiceById.get(referenceId);
         const sourceLines = sourceInvoice?.lines;
         if (!Array.isArray(sourceLines) || !sourceLines.some((line) => isRecord(line) && line.productId === productId)) {
           fail("A stock movement product does not match its invoice.");
         }
         if (value.note !== sourceInvoice?.invoiceNo) fail("A stock movement number does not match its invoice.");
+      } else if (value.referenceType === "purchase") {
+        if (!purchaseIds.has(referenceId)) fail("A stock movement refers to a missing purchase.");
+        const sourcePurchase = purchaseById.get(referenceId);
+        const sourceLines = sourcePurchase?.lines;
+        if (!Array.isArray(sourceLines) || !sourceLines.some((line) => isRecord(line) && line.productId === productId && line.stockReceived === true)) {
+          fail("A stock movement product does not match its stock-received purchase.");
+        }
+        if (value.note !== sourcePurchase?.purchaseNo) fail("A stock movement number does not match its purchase.");
       }
     }
     if (typeof value.quantityDeltaMilli !== "number" || !Number.isSafeInteger(value.quantityDeltaMilli) || value.quantityDeltaMilli === 0) {
@@ -333,9 +484,17 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     if (value.type === "sale" && (value.quantityDeltaMilli as number) >= 0) {
       fail("A sale stock movement must reduce stock.");
     }
-    if (value.type === "return" && (value.quantityDeltaMilli as number) <= 0) {
-      fail("A return stock movement must increase stock.");
+    if (value.type === "purchase" && (value.quantityDeltaMilli as number) <= 0) {
+      fail("A purchase stock movement must increase stock.");
     }
+    if (value.type === "return" && value.referenceType === "invoice" && (value.quantityDeltaMilli as number) <= 0) {
+      fail("An invoice return stock movement must increase stock.");
+    }
+    if (value.type === "return" && value.referenceType === "purchase" && (value.quantityDeltaMilli as number) >= 0) {
+      fail("A supplier return stock movement must reduce stock.");
+    }
+    if (value.type === "sale" && value.referenceType !== "invoice") fail("Sales movements must refer to an invoice.");
+    if (value.type === "purchase" && value.referenceType !== "purchase") fail("Purchase movements must refer to a purchase.");
     if (value.referenceType === "invoice" && (value.type === "sale" || value.type === "return")) {
       const invoiceId = value.referenceId as number;
       const flow = stockFlowByInvoice.get(invoiceId) ?? { sales: new Map<number, number>(), returns: new Map<number, number>() };
@@ -345,6 +504,16 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
       requireSafeInteger(sum, "Stock movement quantity total");
       bucket.set(productId, sum);
       stockFlowByInvoice.set(invoiceId, flow);
+    }
+    if (value.referenceType === "purchase" && (value.type === "purchase" || value.type === "return")) {
+      const purchaseId = value.referenceId as number;
+      const flow = stockFlowByPurchase.get(purchaseId) ?? { receipts: new Map<number, number>(), returns: new Map<number, number>() };
+      const bucket = value.type === "purchase" ? flow.receipts : flow.returns;
+      const amount = Math.abs(value.quantityDeltaMilli as number);
+      const sum = (bucket.get(productId) ?? 0) + amount;
+      requireSafeInteger(sum, "Purchase stock movement quantity total");
+      bucket.set(productId, sum);
+      stockFlowByPurchase.set(purchaseId, flow);
     }
     requireString(value.note, "Stock movement note", 200);
     requireSafeInteger(value.createdAt, "Stock movement timestamp");
@@ -384,8 +553,28 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     }
   }
 
+  // Match received/returned stock to each purchase document.
+  for (const [purchaseId, purchase] of purchaseById) {
+    const flow = stockFlowByPurchase.get(purchaseId) ?? { receipts: new Map<number, number>(), returns: new Map<number, number>() };
+    const expected = new Map<number, number>();
+    for (const rawLine of purchase.lines as unknown[]) {
+      if (!isRecord(rawLine) || rawLine.productId === undefined || rawLine.stockReceived === false) continue;
+      const productId = requireSafeInteger(rawLine.productId, "Purchase product ID", 1);
+      expected.set(productId, (expected.get(productId) ?? 0) + quantityToMilli(rawLine.quantity as number));
+    }
+    const productIdsToCheck = new Set<number>([...expected.keys(), ...flow.receipts.keys(), ...flow.returns.keys()]);
+    for (const productId of productIdsToCheck) {
+      const received = flow.receipts.get(productId) ?? 0;
+      const returned = flow.returns.get(productId) ?? 0;
+      const expectedReceived = expected.get(productId) ?? 0;
+      if (received !== expectedReceived) fail("Purchase stock quantity does not match the received purchase items.");
+      const expectedReturned = purchase.status === "void" ? received : 0;
+      if (returned !== expectedReturned) fail("Purchase return quantity does not match the purchase status.");
+    }
+  }
+
   const auditIds = new Set<number>();
-  const auditTypes = ["invoice", "product", "customer", "payment", "stock", "backup", "settings"];
+  const auditTypes = ["invoice", "product", "customer", "payment", "supplier", "purchase", "supplierPayment", "stock", "backup", "settings"];
   for (const value of auditRows) {
     if (!isRecord(value)) fail("Audit record is malformed.");
     requireUniqueId(value, "Audit event", auditIds);
@@ -398,21 +587,21 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
   }
 }
 
-function validateBackupPayload(value: unknown): Record<string, unknown> {
+function validateBackupPayload(value: unknown, expectedVersion: number): Record<string, unknown> {
   if (!isRecord(value)) throw new Error("Decrypted backup contents are not a valid object.");
-  if (value.format !== BACKUP_FORMAT || value.schemaVersion !== BACKUP_VERSION) {
+  if (value.format !== BACKUP_FORMAT || value.schemaVersion !== expectedVersion) {
     throw new Error("Backup contents are invalid or use an unsupported schema version.");
   }
   const exportedAt = requireString(value.exportedAt, "Backup export time", 40);
   if (Number.isNaN(Date.parse(exportedAt))) fail("Backup export time is invalid.");
-  validateBackupTables(value.tables);
+  validateBackupTables(value.tables, expectedVersion);
   return value;
 }
 
 export async function createEncryptedBackup(password: string): Promise<Blob> {
   const data = await db.transaction(
     "r",
-    [db.settings, db.invoices, db.products, db.customers, db.payments, db.stockMovements, db.auditEvents],
+    [db.settings, db.invoices, db.products, db.customers, db.payments, db.suppliers, db.purchases, db.supplierPayments, db.stockMovements, db.auditEvents],
     async () => ({
       format: BACKUP_FORMAT,
       schemaVersion: BACKUP_VERSION,
@@ -423,6 +612,9 @@ export async function createEncryptedBackup(password: string): Promise<Blob> {
         products: await db.products.toArray(),
         customers: await db.customers.toArray(),
         payments: await db.payments.toArray(),
+        suppliers: await db.suppliers.toArray(),
+        purchases: await db.purchases.toArray(),
+        supplierPayments: await db.supplierPayments.toArray(),
         stockMovements: await db.stockMovements.toArray(),
         auditEvents: await db.auditEvents.toArray()
       }
@@ -467,7 +659,7 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
   if (
     !isRecord(envelope) ||
     envelope.format !== BACKUP_FORMAT ||
-    envelope.version !== BACKUP_VERSION ||
+    (envelope.version !== 1 && envelope.version !== BACKUP_VERSION) ||
     envelope.kdf !== "PBKDF2-SHA256" ||
     envelope.iterations !== ITERATIONS ||
     envelope.cipher !== "AES-256-GCM" ||
@@ -510,7 +702,39 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
   } catch {
     throw new Error("Decrypted backup contents are not valid JSON.");
   }
-  const validated = validateBackupPayload(parsed);
+  if (!isRecord(parsed) || (parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2) ||
+      parsed.schemaVersion !== envelope.version || !isRecord(parsed.tables)) {
+    throw new Error("Backup contents are invalid or use an unsupported schema version.");
+  }
+  const rawTables = parsed.tables as Record<string, unknown>;
+  if (parsed.schemaVersion === 1) {
+    // Legacy exports predate purchase ledgers and stored only invoice numbers
+    // on stock-sale rows, not the source invoice IDs.
+    rawTables.suppliers = [];
+    rawTables.purchases = [];
+    rawTables.supplierPayments = [];
+    if (Array.isArray(rawTables.settings) && isRecord(rawTables.settings[0])) {
+      rawTables.settings[0].purchasePrefix = rawTables.settings[0].purchasePrefix ?? "PUR";
+      rawTables.settings[0].purchaseSequence = rawTables.settings[0].purchaseSequence ?? 0;
+    }
+    const invoiceIdsByNumber = new Map<string, number>();
+    if (Array.isArray(rawTables.invoices)) {
+      for (const invoice of rawTables.invoices) {
+        if (isRecord(invoice) && Number.isSafeInteger(invoice.id) && typeof invoice.invoiceNo === "string") {
+          invoiceIdsByNumber.set(invoice.invoiceNo, invoice.id as number);
+        }
+      }
+    }
+    if (Array.isArray(rawTables.stockMovements)) {
+      for (const movement of rawTables.stockMovements) {
+        if (!isRecord(movement) || movement.referenceType !== "invoice" ||
+            movement.referenceId !== undefined || typeof movement.note !== "string") continue;
+        const invoiceId = invoiceIdsByNumber.get(movement.note);
+        if (invoiceId !== undefined) movement.referenceId = invoiceId;
+      }
+    }
+  }
+  const validated = validateBackupPayload(parsed, envelope.version as number);
 
   const tables = validated.tables as Record<BackupTableName, unknown[]>;
   const business = tables.settings[0] as UnknownRecord;
@@ -528,7 +752,7 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
   });
   await db.transaction(
     "rw",
-    [db.settings, db.invoices, db.products, db.customers, db.payments, db.stockMovements, db.auditEvents],
+    [db.settings, db.invoices, db.products, db.customers, db.payments, db.suppliers, db.purchases, db.supplierPayments, db.stockMovements, db.auditEvents],
     async () => {
       for (const name of TABLE_NAMES) {
         await db.table(name).clear();
