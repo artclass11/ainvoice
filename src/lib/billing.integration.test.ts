@@ -103,6 +103,52 @@ describe("transactional billing workflows", () => {
     await expect(recordPayment({ invoiceId: invoice.id!, amountMinor: 1, method: "cash" })).rejects.toThrow(/amount due/);
   });
 
+  it("serializes simultaneous sales so the final stock unit is never oversold", async () => {
+    const productId = await makeProduct(1000);
+    const input = {
+      customerName: "Concurrent buyer",
+      lines: [{
+        productId,
+        sku: "TEST-001",
+        description: "Test item",
+        quantity: 1,
+        unitPriceMinor: 10000,
+        taxRateBps: 0
+      }]
+    };
+
+    const outcomes = await Promise.allSettled([
+      createInvoice(input),
+      createInvoice(input)
+    ]);
+
+    expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(await db.invoices.count()).toBe(1);
+    expect((await db.settings.get("main"))?.invoiceSequence).toBe(1);
+    expect((await db.products.get(productId))?.stockQuantityMilli).toBe(0);
+    expect(await db.stockMovements.where("type").equals("sale").count()).toBe(1);
+  });
+
+  it("serializes simultaneous payments and allocates no more than the remaining balance", async () => {
+    const invoice = await createInvoice({
+      customerName: "Concurrent payer",
+      lines: [{ description: "Service", quantity: 1, unitPriceMinor: 10000, taxRateBps: 0 }]
+    });
+
+    const outcomes = await Promise.allSettled([
+      recordPayment({ invoiceId: invoice.id!, amountMinor: 7000, method: "upi", reference: "UPI-1" }),
+      recordPayment({ invoiceId: invoice.id!, amountMinor: 7000, method: "upi", reference: "UPI-2" })
+    ]);
+
+    expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const saved = await db.invoices.get(invoice.id!);
+    expect(saved?.paidMinor).toBe(7000);
+    expect(saved?.paymentStatus).toBe("partial");
+    expect(await db.payments.where("invoiceId").equals(invoice.id!).count()).toBe(1);
+  });
+
   it("rolls back invoice number, stock and ledger writes when stock is insufficient", async () => {
     const productId = await makeProduct(2000);
 
