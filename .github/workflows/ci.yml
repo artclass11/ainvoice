@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -33,6 +33,15 @@ jobs:
           path: pnpm-lock.yaml
           if-no-files-found: error
           retention-days: 1
+      - name: Save generated lockfile to a review branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c ci/generated-pnpm-lockfile
+          git add pnpm-lock.yaml
+          git commit -m "chore: add reproducible pnpm lockfile"
+          git push origin HEAD:refs/heads/ci/generated-pnpm-lockfile --force
       - name: Type check
         run: pnpm typecheck
       - name: Unit tests
