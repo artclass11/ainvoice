@@ -17,9 +17,16 @@ Roadmap items are targets, not claims that all features are already complete.
 - [x] Tauri v2 native app project for desktop/mobile targets.
 - [x] Desktop tagged-release pipeline and manually signed mobile build workflows.
 
+## Stage 0 — security foundation (release blocker)
+
+- [x] Record the encrypted-storage architecture decision and migration safety requirements in [ADR 0001](./adr/0001-encrypted-local-storage.md).
+- [ ] Build and independently review a SQLCipher/native key-management proof of concept across desktop, Android and iOS.
+- [ ] Build and review the separate encrypted WebCrypto PWA storage provider; no plaintext fallback.
+- [ ] Migrate legacy Dexie data with backup, reconciliation, interrupted-migration recovery and rollback.
+
 ## Stage 1 — reliable shop billing
 
-- [ ] Run platform-specific build and persistence tests on Windows, macOS, Linux, Android and iOS.
+- [ ] Run platform-specific build, encrypted-persistence and upgrade tests on Windows, macOS, Linux, Android and iOS.
 - [ ] Add barcode scanner and thermal printer workflows.
 - [ ] Add invoice sequence and print-template settings, receipts and customer statements.
 - [ ] Add CSV imports with preview, validation and duplicate resolution.

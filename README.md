@@ -41,6 +41,10 @@ See [PLATFORMS.md](./docs/PLATFORMS.md) for platform details and installation/bu
 - Audit events for core local business changes.
 - Password-encrypted backup export and restore using AES-256-GCM.
 
+## Security and financial-data warning
+
+The app PIN is an app-entry control, not database encryption. Live WebView/IndexedDB business records are currently not encrypted at rest. Only exported backup files are password-encrypted. Do not use AInvoice as the sole store for sensitive production or statutory records. See [SECURITY.md](./SECURITY.md), the [quality scorecard](./docs/QUALITY_SCORECARD.md) and [encrypted-storage decision record](./docs/adr/0001-encrypted-local-storage.md).
+
 ## Promotional video — Hindi
 
 A 25-second vertical Hindi promotional cut has been created for AInvoice. The repository contains its [production notes](./marketing/hindi-promo-2026-11/README.md), [Hindi subtitles](./marketing/hindi-promo-2026-11/ainvoice_promo_hindi.srt), [voiceover script](./marketing/hindi-promo-2026-11/hindi_voiceover_script.md), [shot manifest](./marketing/hindi-promo-2026-11/shot_manifest.json) and [technical QC report](./marketing/hindi-promo-2026-11/QC_REPORT.json).

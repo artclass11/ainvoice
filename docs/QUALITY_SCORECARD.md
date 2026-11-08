@@ -10,7 +10,7 @@ This scorecard is an engineering assessment of the current repository state, not
 | Data integrity and recovery | 8/10 | Versioned migrations, encrypted backup files, strict restore validation and regression coverage; real-device recovery drills and larger data tests remain. |
 | User experience | 6.5/10 | Simple local-first workflow and English/Hindi/Marathi foundations; usability studies, accessibility and full translation QA remain. |
 | Security and privacy | 3.5/10 | PIN hash and retry lockout are app-entry controls only. Local IndexedDB/WebView records are not encrypted at rest. No independent threat review. |
-| Accounting and tax | 4/10 | Basic sales and collections only. Not a full double-entry ledger; supplier purchases, credit notes, returns, refunds, reconciliation and statutory tax validation are incomplete. |
+| Accounting and tax | 4.5/10 | Sales and collections plus a first-stage supplier/purchase ledger and payables. Not a double-entry ledger; supplier opening balances, returns/refunds, credit/debit notes, cross-document allocation, bank reconciliation and statutory tax validation remain incomplete. |
 | Platform readiness | 4/10 | Windows/macOS/Linux early-access builds exist. Android ARM64 debug APK is built, verified and published for preview; permanent Android signing and physical-device QA remain. iOS signed distribution is not published. Store review, notarization and signing are outstanding. |
 | Automated testing | 8/10 | Domain, IndexedDB transaction, backup and legacy migration regression tests; no complete Playwright flow, printer matrix, physical-device or performance suite yet. |
 
@@ -19,6 +19,8 @@ This scorecard is an engineering assessment of the current repository state, not
 - Billing calculations now use exact thousandth quantities and integer minor units with bounded arithmetic.
 - Stock, invoice numbering, first payments and audit events commit in one IndexedDB transaction.
 - Existing payment history is reconciled before receiving another payment.
+- Concurrent-sale, concurrent-payment, credit-limit, supplier purchase, stock-receipt, supplier-payment and purchase-void regression tests are included.
+- Encrypted backup schema v2 includes supplier and purchase data and normalizes supported v1 backups during restore.
 - Supplier purchase documents, stock receipts, supplier payment allocations, and restricted purchase voiding now share transaction, audit and restore-validation rules.
 - Positive customer credit limits are enforced transactionally against opening balances and unpaid issued invoices; fully paid sales do not increase exposure.
 - Invoice records retain the seller identity used when they were issued.
@@ -31,7 +33,7 @@ This scorecard is an engineering assessment of the current repository state, not
 
 ## Mandatory production gates
 
-1. Replace local IndexedDB as the authoritative native store with an audited encrypted database (for example SQLCipher) and hardware-backed key management where supported. Define PIN/key recovery, rotation, wipe and backup compatibility first.
+1. Implement the storage migration described in [ADR 0001](./adr/0001-encrypted-local-storage.md): replace plaintext live storage with a verified encrypted native database and an independently reviewed encrypted PWA store. Define key recovery, rotation, wipe and backup compatibility first.
 2. Build and test the Android release with a permanent private signing key. Test installs, upgrades and data persistence on physical Android devices.
 3. Build, sign, notarize and install test Windows/macOS releases. Publish iOS through TestFlight/App Store after certificates, provisioning, entitlements, privacy disclosures and device QA.
 4. Extend the first-stage supplier/purchase ledger with opening supplier balances, supplier returns/refunds and debit notes; add sales returns, credit notes, payment allocation across multiple documents, bank/UPI reconciliation and controlled period close.
