@@ -108,10 +108,13 @@ function encryptRecord(
   // Bind all visible metadata (especially the primary key and foreign keys)
   // to the authenticated payload. Otherwise a local editor could move a valid
   // ciphertext to a different ID and silently reassign a business record.
+  const generatedPrimaryKey = schema.primaryKey?.autoIncrement === true &&
+    typeof primaryKey === "string" && value[primaryKey] === undefined;
   const payload = encoder.encode(JSON.stringify({
     version: 1,
     table: tableName,
     indexedFields: visible,
+    generatedPrimaryKey,
     fields: secret
   }));
   const nonce = randomBytes(nacl.secretbox.nonceLength);
@@ -143,15 +146,27 @@ function decryptRecord(
       version?: number;
       table?: string;
       indexedFields?: Record<string, unknown>;
+      generatedPrimaryKey?: boolean;
       fields?: Record<string, unknown>;
     };
     if (parsed.version !== 1 || parsed.table !== tableName ||
         !parsed.indexedFields || typeof parsed.indexedFields !== "object" || Array.isArray(parsed.indexedFields) ||
+        typeof parsed.generatedPrimaryKey !== "boolean" ||
         !parsed.fields || typeof parsed.fields !== "object" || Array.isArray(parsed.fields)) {
       throw new Error("Encrypted business record has invalid authenticated content.");
     }
     const { __encryptedData: _discard, ...indexedFields } = value;
-    if (canonical(parsed.indexedFields) !== canonical(indexedFields)) {
+    if (parsed.generatedPrimaryKey) {
+      const primaryKey = schema.primaryKey?.keyPath;
+      if (schema.primaryKey?.autoIncrement !== true || typeof primaryKey !== "string" ||
+          !Object.prototype.hasOwnProperty.call(indexedFields, primaryKey)) {
+        throw new Error("Encrypted record has an invalid generated primary key.");
+      }
+      const { [primaryKey]: _generatedKey, ...authenticatedFields } = indexedFields;
+      if (canonical(parsed.indexedFields) !== canonical(authenticatedFields)) {
+        throw new Error("Encrypted record index metadata authentication failed.");
+      }
+    } else if (canonical(parsed.indexedFields) !== canonical(indexedFields)) {
       throw new Error("Encrypted record index metadata authentication failed.");
     }
     return { ...indexedFields, ...parsed.fields };
