@@ -200,6 +200,28 @@ describe("live IndexedDB record encryption", () => {
     expect(raw).not.toContain("Changed private note");
   });
 
+  it("authenticates visible primary and relationship indexes against the encrypted payload", async () => {
+    const key = new Uint8Array(32).fill(29);
+    database = new AInvoiceDatabase(databaseName, true, () => key, () => true);
+    await database.open();
+    await database.invoices.put({
+      id: 22, invoiceNo: "BOUND-KEY-22", createdAt: 1, dateISO: "2026-11-08",
+      customerId: 700, customerName: "Bound Customer", lines: [],
+      subtotalMinor: 0, discountMinor: 0, taxMinor: 0, totalMinor: 0,
+      paidMinor: 0, paymentStatus: "due", status: "issued",
+      currencyCode: "INR", schemaVersion: 2
+    } as any);
+
+    const [raw] = await readRawRows("invoices");
+    const changed = { ...raw, customerId: 701 };
+    await writeRawRow("invoices", changed);
+    await expect(database.invoices.get(22)).rejects.toThrow(/index metadata authentication/i);
+
+    // Moving an intact envelope to a different primary key is also detected.
+    await writeRawRow("invoices", { ...raw, id: 23 });
+    await expect(database.invoices.get(23)).rejects.toThrow(/index metadata authentication/i);
+  });
+
   it("uses a fresh nonce for every record write and generates a 256-bit recovery key", async () => {
     const key = new Uint8Array(32).fill(23);
     database = new AInvoiceDatabase(databaseName, true, () => key, () => true);

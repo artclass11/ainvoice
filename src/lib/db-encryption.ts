@@ -38,6 +38,16 @@ function bytesToHex(value: Uint8Array): string {
   return Array.from(value, byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return "{" + Object.keys(record).filter(name => record[name] !== undefined).sort()
+      .map(name => JSON.stringify(name) + ":" + canonical(record[name])).join(",") + "}";
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
 function requireKey(key: Uint8Array): void {
   if (!(key instanceof Uint8Array) || key.length !== nacl.secretbox.keyLength) {
     throw new Error("AInvoice database recovery key is unavailable.");
@@ -95,7 +105,15 @@ function encryptRecord(
     else secret[field] = fieldValue;
   }
 
-  const payload = encoder.encode(JSON.stringify({ version: 1, table: tableName, fields: secret }));
+  // Bind all visible metadata (especially the primary key and foreign keys)
+  // to the authenticated payload. Otherwise a local editor could move a valid
+  // ciphertext to a different ID and silently reassign a business record.
+  const payload = encoder.encode(JSON.stringify({
+    version: 1,
+    table: tableName,
+    indexedFields: visible,
+    fields: secret
+  }));
   const nonce = randomBytes(nacl.secretbox.nonceLength);
   const ciphertext = nacl.secretbox(payload, nonce, key);
   payload.fill(0);
@@ -123,13 +141,18 @@ function decryptRecord(
     const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as {
       version?: number;
       table?: string;
+      indexedFields?: Record<string, unknown>;
       fields?: Record<string, unknown>;
     };
     if (parsed.version !== 1 || parsed.table !== tableName ||
+        !parsed.indexedFields || typeof parsed.indexedFields !== "object" || Array.isArray(parsed.indexedFields) ||
         !parsed.fields || typeof parsed.fields !== "object" || Array.isArray(parsed.fields)) {
       throw new Error("Encrypted business record has invalid authenticated content.");
     }
     const { __encryptedData: _discard, ...indexedFields } = value;
+    if (canonical(parsed.indexedFields) !== canonical(indexedFields)) {
+      throw new Error("Encrypted record index metadata authentication failed.");
+    }
     return { ...indexedFields, ...parsed.fields };
   } finally {
     plaintext.fill(0);

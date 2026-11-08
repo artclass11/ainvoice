@@ -1,39 +1,42 @@
 # AInvoice roadmap
 
-Roadmap items are targets, not claims that all features are already complete.
+Roadmap items are targets, not claims that every feature is already released.
 
 ## Foundation — implemented in the current source milestone
 
 - [x] Public Apache-2.0 repository and contributor policy.
 - [x] React/TypeScript interface and black minimal visual system.
 - [x] English, Hindi and Marathi interface dictionaries for principal workflows.
-- [x] Local PIN entry gate.
+- [x] Local PIN entry gate, separate from database encryption.
 - [x] Dexie/IndexedDB schema with invoices, products, customers, payments, stock movements and audit events.
 - [x] Multi-item invoice creation, discount, tax snapshot, payment capture and partial-payment status.
 - [x] Tracked stock decrement and low-stock warnings.
 - [x] Customer/product maintenance, payment book, reports and invoice print view.
-- [x] Supplier book, purchase records with cost/tax snapshots, transactional tracked-stock receipts, supplier payments, supplier balances and restricted unpaid-purchase voids.
+- [x] Supplier book, purchase records, transactional stock receipts, supplier payments, supplier balances and restricted purchase voids.
 - [x] AES-256-GCM password-encrypted backup export/restore.
-- [x] Tauri v2 native app project for desktop/mobile targets.
-- [x] Desktop tagged-release pipeline and manually signed mobile build workflows.
+- [x] Tauri v2 native app project and platform release workflows.
 
 ## Stage 0 — security foundation (release blocker)
 
-- [x] Record the encrypted-storage architecture decision and migration safety requirements in [ADR 0001](./adr/0001-encrypted-local-storage.md).
-- [ ] Build and independently review a SQLCipher/native key-management proof of concept across desktop, Android and iOS.
-- [ ] Build and review the separate encrypted WebCrypto PWA storage provider; no plaintext fallback.
-- [ ] Migrate legacy Dexie data with backup, reconciliation, interrupted-migration recovery and rollback.
+- [x] Record encrypted-storage architecture and migration requirements in [ADR 0001](./adr/0001-encrypted-local-storage.md).
+- [x] Draft PR #9: implement an authenticated XSalsa20-Poly1305 record-encryption prototype for live Dexie/IndexedDB storage shared by PWA and Tauri WebViews.
+- [x] Draft PR #9: remove PII/text indexes, add a separate 256-bit recovery-key gate, wrong-key/tamper/plaintext-leakage/nonce tests, and legacy v5 writer fencing with verified migration.
+- [ ] Obtain independent cryptographic review of DBCore middleware and key lifecycle.
+- [ ] Verify raw IndexedDB/WebView profile contents and old database remnants on real browser/platform builds.
+- [ ] Complete migration tests for interruption, disk-full, multiple tabs, crash/restart and rollback.
+- [ ] Design an approved recovery, key-rotation and OS secure-key-store integration path; prototype currently requires user-held key entry at every app start.
+- [ ] Merge and ship an approved encryption release. Main/default branch and existing preview installers remain plaintext until this is done.
 
 ## Stage 1 — reliable shop billing
 
-- [ ] Run platform-specific build, encrypted-persistence and upgrade tests on Windows, macOS, Linux, Android and iOS.
+- [ ] Run encrypted-persistence, migration and upgrade tests on Windows, macOS, Linux, Android and iOS devices.
 - [ ] Add barcode scanner and thermal printer workflows.
 - [ ] Add invoice sequence and print-template settings, receipts and customer statements.
 - [ ] Add CSV imports with preview, validation and duplicate resolution.
-- [ ] Test backup/restore with large data sets and migration from each released schema.
+- [ ] Test backup/restore with large data sets and migration from every released schema.
 - [x] Add the first supplier/purchase ledger, stock receipts and purchase-linked supplier payments.
-- [ ] Add supplier opening balances, purchase returns/refunds, supplier debit notes and settlement across multiple purchase documents.
-- [ ] Add sales returns, purchase returns, refunds and credit notes.
+- [ ] Add supplier opening balances, purchase returns/refunds, debit notes and settlement across multiple purchase documents.
+- [ ] Add sales returns, refunds and credit notes.
 
 ## Stage 2 — accounting and tax depth
 
@@ -60,6 +63,6 @@ Roadmap items are targets, not claims that all features are already complete.
 
 ## Release gates
 
-- No production release until sensitive local data storage is reviewed and encrypted, backup/restore has been tested, invoice/payment/stock invariants have comprehensive tests, platform persistence is tested, and independent tax/accounting and security reviews are complete.
+- No production release until sensitive local data storage is independently reviewed, encrypted, migrated safely, and tested on supported devices; backup/restore and billing invariants must also pass.
 - iOS and Android packages must be signed with the correct platform credentials before distribution.
 - Tax or statutory features require current official-source verification and qualified review.

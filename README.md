@@ -43,7 +43,7 @@ See [PLATFORMS.md](./docs/PLATFORMS.md) for platform details and installation/bu
 
 ## Security and financial-data warning
 
-The app PIN is an app-entry control, not database encryption. Live WebView/IndexedDB business records are currently not encrypted at rest. Only exported backup files are password-encrypted. Do not use AInvoice as the sole store for sensitive production or statutory records. See [SECURITY.md](./SECURITY.md), the [quality scorecard](./docs/QUALITY_SCORECARD.md) and [encrypted-storage decision record](./docs/adr/0001-encrypted-local-storage.md).
+The app PIN is an app-entry control, not the database key. The security/live-encryption-poc branch and [draft PR #9](https://github.com/artclass11/ainvoice/pull/9) add a live IndexedDB record-encryption prototype with a separate 256-bit recovery key. This work is not merged or released: main and current preview installers still have plaintext live local records. Do not use AInvoice as the sole store for sensitive production or statutory records. See [SECURITY.md](./SECURITY.md), the [quality scorecard](./docs/QUALITY_SCORECARD.md) and [encrypted-storage decision record](./docs/adr/0001-encrypted-local-storage.md).
 
 ## Promotional video — Hindi
 
@@ -104,9 +104,10 @@ Choose an installer for your device. Version 0.1.1 is the newest release; older 
 
 AInvoice is in **early development**, not yet a production-ready accounting or tax system.
 
-- The PIN is an app-entry gate, not database encryption.
-- Live browser/WebView IndexedDB data is not automatically encrypted at rest.
-- Exported backup files are encrypted, but losing the backup password makes the backup unrecoverable.
+- The PIN is an app-entry gate, not the live database encryption key.
+- Draft PR #9 adds authenticated encryption to live IndexedDB business-record payloads, using a separate random 256-bit recovery key that must be saved by the user and entered at every app start. The key is not stored or recoverable by AInvoice.
+- This prototype is not merged or released. Main/default branch and existing preview installers still store live IndexedDB records in plaintext.
+- Exported backup files use a separate AES-256-GCM backup password. Losing either key/password prevents recovery through that protection path.
 - First-stage supplier and purchase ledgers are implemented, but supplier opening balances, supplier returns/refunds, debit notes, sales credit notes, double-entry accounting, bank reconciliation, multi-user permissions, branch/tenant isolation, encrypted multi-device sync and independent security testing are not complete.
 - GST, e-invoicing, IRN, e-way bills and other statutory features must not be treated as compliant until current official rules and qualified review are incorporated.
 
