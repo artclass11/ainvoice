@@ -176,36 +176,28 @@ describe("live IndexedDB record encryption", () => {
     const key = new Uint8Array(32).fill(31);
     database = new AInvoiceDatabase(databaseName, true, () => key, () => true);
     await database.open();
-    await database.products.put({
-      id: 8,
-      name: "Sensitive Product Name",
-      sku: "SECRET-SKU-8",
-      unit: "pcs",
-      salePriceMinor: 1000,
-      purchasePriceMinor: 500,
-      taxRateBps: 0,
-      stockQuantityMilli: 10,
-      reorderLevelMilli: 0,
-      trackStock: true,
-      active: true,
-      createdAt: 1,
-      updatedAt: 1
-    });
+    await database.invoices.put({
+      id: 8, invoiceNo: "PRIVATE-008", createdAt: 1, dateISO: "2026-11-08",
+      customerName: "Sensitive Customer", lines: [], subtotalMinor: 0, discountMinor: 0,
+      taxMinor: 0, totalMinor: 0, paidMinor: 0, paymentStatus: "due",
+      status: "issued", currencyCode: "INR", notes: "Original private note", schemaVersion: 2
+    } as any);
 
-    const keys = await database.products.where("active").equals(true).primaryKeys();
+    const keys = await database.invoices.where("paymentStatus").equals("due").primaryKeys();
     expect(keys).toEqual([8]);
-    expect((await database.products.where("active").equals(true).toArray())[0].name)
-      .toBe("Sensitive Product Name");
+    expect((await database.invoices.where("paymentStatus").equals("due").toArray())[0].customerName)
+      .toBe("Sensitive Customer");
 
-    await database.products.where("active").equals(true).modify(product => {
-      product.name = "Changed Private Product";
+    await database.invoices.where("paymentStatus").equals("due").modify(invoice => {
+      invoice.notes = "Changed private note";
     });
-    expect((await database.products.get(8))?.name).toBe("Changed Private Product");
+    expect((await database.invoices.get(8))?.notes).toBe("Changed private note");
 
-    const raw = JSON.stringify(await readRawRows("products"));
-    expect(raw).not.toContain("Sensitive Product Name");
-    expect(raw).not.toContain("Changed Private Product");
-    expect(raw).not.toContain("SECRET-SKU-8");
+    const raw = JSON.stringify(await readRawRows("invoices"));
+    expect(raw).not.toContain("Sensitive Customer");
+    expect(raw).not.toContain("PRIVATE-008");
+    expect(raw).not.toContain("Original private note");
+    expect(raw).not.toContain("Changed private note");
   });
 
   it("uses a fresh nonce for every record write and generates a 256-bit recovery key", async () => {

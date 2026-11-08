@@ -380,10 +380,10 @@ export class AInvoiceDatabase extends Dexie {
       this.version(6).stores({
         invoices: "++id,customerId,paymentStatus,status",
         settings: "id",
-        products: "++id,active,trackStock",
-        customers: "++id,active",
+        products: "++id",
+        customers: "++id",
         payments: "++id,invoiceId,customerId,method",
-        suppliers: "++id,active",
+        suppliers: "++id",
         purchases: "++id,supplierId,paymentStatus,status",
         supplierPayments: "++id,purchaseId,supplierId,method",
         stockMovements: "++id,productId,type,referenceType,referenceId",
