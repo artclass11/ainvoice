@@ -64,6 +64,10 @@ AInvoice Pro is the professional workflow track for retailers, wholesalers and d
 - [ ] Encrypted sync with server-side authorization, idempotency, conflict handling and audit trails.
 - [ ] Signed installers and updates, SBOM, vulnerability response and documented recovery procedures.
 
+## Verified implementation snapshot
+
+The catalogue and account-statement implementation at `88ffee21c53144a4e27d1d29752cb61a2122e4af` passed the full GitHub Actions CI and CodeQL workflows. The PR remains a draft while the documented manual usability, accessibility and end-to-end regression checks are outstanding.
+
 ## Data safety and release policy
 
 - Do not use an unreviewed Pro preview as the only copy of real business or statutory records.
@@ -78,6 +82,6 @@ AInvoice Pro is the professional workflow track for retailers, wholesalers and d
 - [x] CSV import/export has dedicated unit tests for quoting, decimals, duplicate SKUs, malformed data, row/file limits and formula neutralization.
 - [x] Import transaction tests cover atomicity, race-time duplicate checks, opening stock movements and audit logging.
 - [x] Statement reconciliation and CSV formula-neutralization tests; catalogue CSV validation tests.
-- [ ] Run full repository CI and CodeQL on the latest Pro branch head.
+- [x] Full CI and CodeQL passed on application implementation commit `88ffee21c53144a4e27d1d29752cb61a2122e4af`: typecheck, all unit/integration tests, production web build, production dependency audit, native Linux/Tauri compile and JavaScript/TypeScript CodeQL. [CI run 42509532809](https://github.com/artclass11/ainvoice/actions/runs/42509532809) · [CodeQL run 42509532760](https://github.com/artclass11/ainvoice/actions/runs/42509532760).
 - [ ] Manual browser review of the catalogue and statement export workflows, large catalogues and keyboard/screen-reader navigation.
 - [ ] Manual regression of invoice creation, purchase receipt, stock changes, backup and restore after catalogue import.
