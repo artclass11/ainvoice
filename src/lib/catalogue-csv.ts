@@ -288,5 +288,5 @@ export function exportProductsCsv(products: readonly Product[]): string {
 export function createProductCsvTemplate(): string {
   // Header names are simple identifiers, so leave them unquoted for easier
   // inspection and editing in spreadsheet applications.
-  return PRODUCT_CSV_HEADERS.join(",") + "\\r\\n";
+  return PRODUCT_CSV_HEADERS.join(",") + String.fromCharCode(13, 10);
 }
