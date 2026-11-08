@@ -296,28 +296,28 @@ export default function App() {
     <section className="auth-card"><div className="brand-lockup"><div className="brand-mark">A</div><span>AInvoice</span></div>
       <div className="auth-eyebrow"><ShieldCheck size={14}/> ENCRYPTED LOCAL BUSINESS STORAGE</div>
       {vaultState==="setup" ? <>
-        <h1>Protect this business database</h1>
-        <p className="auth-subtitle">AInvoice will encrypt invoices, customers, contacts, products, supplier records, payment history and audit data before storing them on this device.</p>
-        <div className="settings-warning"><CircleHelp size={17}/><p>Save this 64-character recovery key somewhere separate and safe. It is generated randomly, is not your app PIN, and is not stored by AInvoice. Losing it means the encrypted business data cannot be recovered.</p></div>
-        <label className="vault-key-label">Your database recovery key</label>
-        <div className="vault-key-box"><code>{generatedRecoveryKey.match(/.{1,4}/g)?.join(" ")}</code><button type="button" className="secondary-button" onClick={()=>navigator.clipboard?.writeText(generatedRecoveryKey)}><Copy size={15}/> Copy key</button></div>
+        <h1>{t("vaultSetupTitle")}</h1>
+        <p className="auth-subtitle">{t("vaultSetupHelp")}</p>
+        <div className="settings-warning"><CircleHelp size={17}/><p>{t("vaultKeyWarning")}</p></div>
+        <label className="vault-key-label">{t("vaultKeyLabel")}</label>
+        <div className="vault-key-box"><code>{generatedRecoveryKey.match(/.{1,4}/g)?.join(" ")}</code><button type="button" className="secondary-button" onClick={()=>navigator.clipboard?.writeText(generatedRecoveryKey)}><Copy size={15}/> {t("vaultCopyKey")}</button></div>
         <form className="auth-form" onSubmit={event=>{event.preventDefault();if(recoveryConfirmation.trim().replace(/\s+/g,"").toLowerCase()!==generatedRecoveryKey){setVaultError("The recovery key confirmation does not match. Copy and save the complete key first.");return;}void openVault("setup",generatedRecoveryKey);}}>
-          <label>Confirm your saved recovery key<input value={recoveryConfirmation} onChange={event=>setRecoveryConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required/></label>
-          <p className="field-note">Keep this recovery key available every time you open AInvoice on this device. The old local database will be preserved until the encrypted copy is verified.</p>
-          <button className="primary-button full-button" disabled={vaultBusy || !generatedRecoveryKey}>{vaultBusy?"Encrypting and verifying…":"Confirm key and encrypt data"} <ArrowUpRight size={16}/></button>
+          <label>{t("vaultConfirmKey")}<input value={recoveryConfirmation} onChange={event=>setRecoveryConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required/></label>
+          <p className="field-note">{t("vaultMigrationWarning")}</p>
+          <button className="primary-button full-button" disabled={vaultBusy || !generatedRecoveryKey}>{vaultBusy?t("vaultWorking"):t("vaultSetupAction")} <ArrowUpRight size={16}/></button>
         </form>
       </> : vaultState==="locked" ? <>
-        <h1>Unlock encrypted business data</h1>
-        <p className="auth-subtitle">Enter the 64-character database recovery key. Your app PIN is requested after the encrypted database opens.</p>
+        <h1>{t("vaultUnlockTitle")}</h1>
+        <p className="auth-subtitle">{t("vaultUnlockHelp")}</p>
         <form className="auth-form" onSubmit={event=>{event.preventDefault();void openVault("unlock",recoveryInput);}}>
-          <label>Database recovery key<input value={recoveryInput} onChange={event=>setRecoveryInput(event.target.value)} autoFocus autoComplete="off" spellCheck={false} required/></label>
-          <button className="primary-button full-button" disabled={vaultBusy || !recoveryInput.trim()}>{vaultBusy?"Unlocking and verifying…":"Unlock database"} <ArrowUpRight size={16}/></button>
+          <label>{t("vaultKeyLabel")}<input value={recoveryInput} onChange={event=>setRecoveryInput(event.target.value)} autoFocus autoComplete="off" spellCheck={false} required/></label>
+          <button className="primary-button full-button" disabled={vaultBusy || !recoveryInput.trim()}>{vaultBusy?t("vaultWorking"):t("vaultOpen")} <ArrowUpRight size={16}/></button>
         </form>
-        <p className="field-note">The recovery key is separate from your 4–6 digit app PIN. Do not share it or store it with the device.</p>
+        <p className="field-note">{t("pinHint")}</p>
       </> : <>
-        <h1>{vaultState==="unrecognized"?"Database not changed":"Encrypted storage unavailable"}</h1>
-        <p className="auth-subtitle">{vaultError || "AInvoice could not safely identify the local storage state."}</p>
-        <p className="field-note">AInvoice has stopped rather than opening an unknown or unencrypted database. Do not delete browser or app storage. Contact support with this message and keep any existing backup.</p>
+        <h1>{vaultState==="unrecognized"?t("vaultUnknownTitle"):t("vaultErrorTitle")}</h1>
+        <p className="auth-subtitle">{vaultError || t("vaultUnknownHelp")}</p>
+        <p className="field-note">{t("vaultUnknownHelp")}</p>
         {vaultState==="error"&&<button className="secondary-button" onClick={()=>{setVaultError("");setVaultState("checking");window.location.reload();}}>Retry</button>}
       </>}
       {vaultError&&vaultState!=="unrecognized"&&<div className="toast error-toast">{vaultError}</div>}

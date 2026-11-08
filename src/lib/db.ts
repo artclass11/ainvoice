@@ -455,8 +455,10 @@ function equalSnapshots(left: LegacySnapshot, right: LegacySnapshot): boolean {
 async function importSnapshot(snapshot: LegacySnapshot): Promise<void> {
   await db.transaction(
     "rw",
-    db.invoices, db.settings, db.products, db.customers, db.payments,
-    db.suppliers, db.purchases, db.supplierPayments, db.stockMovements, db.auditEvents,
+    [
+      db.invoices, db.settings, db.products, db.customers, db.payments,
+      db.suppliers, db.purchases, db.supplierPayments, db.stockMovements, db.auditEvents
+    ],
     async () => {
       if (snapshot.invoices.length) await db.invoices.bulkAdd(snapshot.invoices);
       if (snapshot.settings.length) await db.settings.bulkAdd(snapshot.settings);
@@ -568,11 +570,14 @@ export async function setupEncryptedDatabase(recoveryKey: string): Promise<boole
   }
 }
 
-export async function unlockEncryptedDatabase(recoveryKey: string): Promise<boolean> {
+export async function unlockEncryptedDatabase(
+  recoveryKey: string,
+  reconcileLegacy = true
+): Promise<boolean> {
   unlockRuntimeKey(recoveryKey);
   try {
     await db.open();
-    return await reconcileLegacyDatabase();
+    return reconcileLegacy ? await reconcileLegacyDatabase() : true;
   } catch (error) {
     db.close();
     clearRuntimeKey();
