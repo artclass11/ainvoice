@@ -116,6 +116,46 @@ describe("transactional billing workflows", () => {
     expect(await db.payments.count()).toBe(0);
   });
 
+  it("rejects over-length records before creating data that encrypted backups cannot restore", async () => {
+    const validLine = [{ description: "Service", quantity: 1, unitPriceMinor: 1000, taxRateBps: 0 }];
+
+    await expect(createInvoice({ customerName: "x".repeat(161), lines: validLine }))
+      .rejects.toThrow(/Customer name must be 160 characters/);
+    await expect(createInvoice({ customerName: "Customer", notes: "x".repeat(2001), lines: validLine }))
+      .rejects.toThrow(/Notes must be 2,000 characters/);
+    await expect(createInvoice({
+      customerName: "Customer",
+      lines: validLine,
+      paidMinor: 100,
+      paymentReference: "x".repeat(161)
+    })).rejects.toThrow(/Payment reference must be 160 characters/);
+    await expect(saveProduct({
+      name: "x".repeat(161), sku: "LONG-NAME", unit: "pcs", salePriceMinor: 100,
+      purchasePriceMinor: 50, taxRateBps: 0, stockQuantityMilli: 0,
+      reorderLevelMilli: 0, trackStock: true, active: true
+    })).rejects.toThrow(/Item name must be 160 characters/);
+
+    expect(await db.invoices.count()).toBe(0);
+    expect(await db.products.count()).toBe(0);
+  });
+
+  it("rejects over-length payment details before writing to the payment ledger", async () => {
+    const invoice = await createInvoice({
+      customerName: "Customer",
+      lines: [{ description: "Service", quantity: 1, unitPriceMinor: 10000, taxRateBps: 0 }]
+    });
+
+    await expect(recordPayment({
+      invoiceId: invoice.id!, amountMinor: 100, method: "cash", reference: "x".repeat(161)
+    })).rejects.toThrow(/Payment reference must be 160 characters/);
+    await expect(recordPayment({
+      invoiceId: invoice.id!, amountMinor: 100, method: "cash", note: "x".repeat(1001)
+    })).rejects.toThrow(/Payment note must be 1,000 characters/);
+
+    expect(await db.payments.count()).toBe(0);
+    expect((await db.invoices.get(invoice.id!))?.paidMinor).toBe(0);
+  });
+
   it("blocks a bill when its selected customer is missing or inactive", async () => {
     const customerId = await makeCustomer();
     await db.customers.update(customerId, { active: false });
