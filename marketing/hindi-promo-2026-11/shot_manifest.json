@@ -1,0 +1,118 @@
+{
+  "project": "AInvoice Hindi Product Promo",
+  "brand": "AInvoice",
+  "language": "Hindi",
+  "format": "vertical social video",
+  "duration_seconds": 25,
+  "resolution": "1080x1920",
+  "fps": 24,
+  "shots": [
+    {
+      "id": "S01",
+      "time": "00:00-00:02.5",
+      "purpose": "Hook: everyday billing workload",
+      "source_type": "original_2.5d_motion",
+      "assets": ["procedural receipt objects"],
+      "notes": "Synthetic illustration; no real invoice or customer data."
+    },
+    {
+      "id": "S02",
+      "time": "00:02.5-00:05",
+      "purpose": "Introduce AInvoice and overview UI",
+      "source_type": "original_2.5d_motion",
+      "assets": ["illustrative dashboard UI"],
+      "notes": "UI is a promotional mock-up, not a captured live screen."
+    },
+    {
+      "id": "S03",
+      "time": "00:05-00:07.5",
+      "purpose": "Product catalogue and customer book",
+      "source_type": "original_2.5d_motion",
+      "assets": ["illustrative product/customer UI"],
+      "notes": "Only features confirmed in repository documentation are described."
+    },
+    {
+      "id": "S04",
+      "time": "00:07.5-00:10",
+      "purpose": "Multi-item sales invoice",
+      "source_type": "original_2.5d_motion",
+      "assets": ["illustrative invoice interface"],
+      "notes": "Example values are illustrative, not actual transaction data."
+    },
+    {
+      "id": "S05",
+      "time": "00:10-00:12.5",
+      "purpose": "Payment method capture",
+      "source_type": "original_2.5d_motion",
+      "assets": ["animated payment cards"],
+      "notes": "Shows cash, UPI, bank and card method options."
+    },
+    {
+      "id": "S06",
+      "time": "00:12.5-00:15",
+      "purpose": "Optional stock tracking",
+      "source_type": "original_2.5d_motion",
+      "assets": ["illustrative stock UI"],
+      "notes": "Only tracked-item stock workflows are described."
+    },
+    {
+      "id": "S07",
+      "time": "00:15-00:17.5",
+      "purpose": "Basic sales and collections reports",
+      "source_type": "original_2.5d_motion",
+      "assets": ["illustrative report UI"],
+      "notes": "Chart and numbers are design examples, not real business metrics."
+    },
+    {
+      "id": "S08",
+      "time": "00:17.5-00:20",
+      "purpose": "Encrypted backup export",
+      "source_type": "original_3d_motion",
+      "assets": ["procedural rotating vault/cube"],
+      "notes": "AES-256-GCM applies to exported backup; live local IndexedDB storage is not automatically encrypted at rest."
+    },
+    {
+      "id": "S09",
+      "time": "00:20-00:22.5",
+      "purpose": "Language options",
+      "source_type": "original_2.5d_motion",
+      "assets": ["Hindi, Marathi and English language cards"],
+      "notes": "Describes interface foundations; does not imply complete localization certification."
+    },
+    {
+      "id": "S10",
+      "time": "00:22.5-00:25",
+      "purpose": "Brand close and source-code CTA",
+      "source_type": "original_motion_graphics",
+      "assets": ["AInvoice mark and CTA typography"],
+      "notes": "Early-development status and non-compliance note are shown."
+    }
+  ],
+  "rights": {
+    "visuals": "original procedural artwork and UI illustrations; no stock footage used",
+    "music": "original procedural instrumental synthesized for this promo; no third-party samples",
+    "voiceover": "not included in MP4; separate spoken narration required before voice-led release"
+  },
+  "claims": [
+    {
+      "claim": "Offline-first/local-first billing workflow",
+      "evidence": "artclass11/ainvoice README.md and docs/PRODUCT_SPEC.md"
+    },
+    {
+      "claim": "Multi-item sales invoices with configurable tax and payment capture",
+      "evidence": "artclass11/ainvoice README.md"
+    },
+    {
+      "claim": "Optional stock tracking and basic reports",
+      "evidence": "artclass11/ainvoice README.md"
+    },
+    {
+      "claim": "AES-256-GCM encrypted backup export/restore",
+      "evidence": "artclass11/ainvoice README.md and docs/ENTERPRISE_READINESS.md"
+    },
+    {
+      "claim": "Hindi and Marathi interface foundations",
+      "evidence": "artclass11/ainvoice README.md and docs/ENTERPRISE_READINESS.md"
+    }
+  ]
+}

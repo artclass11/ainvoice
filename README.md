@@ -40,6 +40,12 @@ See [PLATFORMS.md](./docs/PLATFORMS.md) for platform details and installation/bu
 - Audit events for core local business changes.
 - Password-encrypted backup export and restore using AES-256-GCM.
 
+## Promotional video — Hindi
+
+A 25-second vertical Hindi promotional cut has been created for AInvoice. The repository contains its [production notes](./marketing/hindi-promo-2026-11/README.md), [Hindi subtitles](./marketing/hindi-promo-2026-11/ainvoice_promo_hindi.srt), [voiceover script](./marketing/hindi-promo-2026-11/hindi_voiceover_script.md), [shot manifest](./marketing/hindi-promo-2026-11/shot_manifest.json) and [technical QC report](./marketing/hindi-promo-2026-11/QC_REPORT.json).
+
+The encoded MP4 master was delivered separately and is not stored in this Git commit. The current master includes original instrumental music and Hindi on-screen text, but does not yet include spoken narration; human creative review is also pending. See the QC report before using it publicly.
+
 ## Development
 
 Requires Node.js 22+, pnpm 9+ and Rust stable for native builds.
@@ -107,4 +113,3 @@ Read [SECURITY.md](./SECURITY.md) and [ENTERPRISE_READINESS.md](./docs/ENTERPRIS
 ## License
 
 Apache-2.0. Third-party dependencies and optional integrations retain their own licenses.
-

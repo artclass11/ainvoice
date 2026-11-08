@@ -1,0 +1,44 @@
+{
+  "project": "AInvoice Hindi Product Promo",
+  "video_file": "ainvoice_promo_hindi.mp4",
+  "technical_status": "PASS",
+  "creative_release_status": "HOLD_FOR_HUMAN_REVIEW_AND_VOICEOVER_MUX",
+  "video": {
+    "duration_seconds": 25.0,
+    "resolution": "1080x1920",
+    "frame_rate": "24/1",
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "audio_sample_rate_hz": 48000,
+    "audio_channels": 2,
+    "audio_content": "original generated instrumental score only; narration is not muxed",
+    "file_size_bytes": 6889218,
+    "sha256": "98a02479959e567851a4d8a881e6e2f6bb20e7656ec890ed51238e5cf30d3c9d"
+  },
+  "checks": {
+    "file_exists": true,
+    "ffprobe_stream_check": "PASS",
+    "full_file_ffmpeg_decode": "PASS",
+    "duration_and_resolution": "PASS",
+    "frame_rate": "PASS — 24 fps",
+    "subtitles_file_present": true,
+    "contact_sheet_present_in_delivery_zip": true,
+    "source_script_present_in_delivery_zip": true,
+    "visual_claims_reviewed_against_AInvoice_README": "PASS",
+    "voiceover_muxed": false,
+    "human_full_watch_and_listening_approval": false,
+    "commercial_release_rights_review": "pending human review",
+    "subtitle_file_duration": "PASS — Hindi cues cover the 25-second edit"
+  },
+  "known_limitations": [
+    "The Hindi narration is not embedded in the MP4; only original instrumental music and on-screen text are embedded.",
+    "The UI is a clearly illustrative promotional mock-up, not captured production application footage.",
+    "The app is in early development and must not be advertised as production-ready or GST/e-invoice compliant.",
+    "AInvoice's PIN is an app-entry lock, not live database encryption."
+  ],
+  "next_required_actions": [
+    "Add a human-recorded or separately exported Hindi narration track and rerun audio/video sync checks.",
+    "Watch the complete exported MP4 and listen to the complete mix.",
+    "Approve or revise the creative cut with timestamps; only then consider publishing."
+  ]
+}
