@@ -438,9 +438,9 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
   } catch {
     throw new Error("Decrypted backup contents are not valid JSON.");
   }
-  validateBackupPayload(parsed);
+  const validated = validateBackupPayload(parsed);
 
-  const tables = parsed.tables as Record<BackupTableName, unknown[]>;
+  const tables = validated.tables as Record<BackupTableName, unknown[]>;
   const business = tables.settings[0] as UnknownRecord;
   // Upgrade older valid backup records to the current immutable invoice snapshot shape.
   tables.invoices = tables.invoices.map((rawInvoice) => {
