@@ -161,7 +161,7 @@ export function previewProductCsv(
   if (typeof source !== "string" || source.trim().length === 0) {
     throw new Error("Choose a non-empty CSV file.");
   }
-  if (source.length > PRODUCT_CSV_MAX_BYTES) {
+  if (new TextEncoder().encode(source).byteLength > PRODUCT_CSV_MAX_BYTES) {
     throw new Error("CSV is larger than the 5 MB import limit.");
   }
 
