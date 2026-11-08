@@ -475,10 +475,22 @@ async function importSnapshot(snapshot: LegacySnapshot): Promise<void> {
 async function deleteLegacyDatabase(): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME);
-    let blocked = false;
-    request.onblocked = () => { blocked = true; };
-    request.onsuccess = () => resolve(!blocked);
-    request.onerror = () => reject(request.error ?? new Error("Could not remove the old local database."));
+    let settled = false;
+    request.onblocked = () => {
+      // Do not hold the opening screen indefinitely because an older tab is
+      // still connected. Keep the verified encrypted copy and report the
+      // incomplete cleanup so the user can close that tab and retry later.
+      if (!settled) { settled = true; resolve(false); }
+    };
+    request.onsuccess = () => {
+      if (!settled) { settled = true; resolve(true); }
+    };
+    request.onerror = () => {
+      if (!settled) {
+        settled = true;
+        reject(request.error ?? new Error("Could not remove the old local database."));
+      }
+    };
   });
 }
 
