@@ -28,7 +28,7 @@ This scorecard is an engineering assessment of the repository, not a certificati
 - Draft PR #9 vendors the public-domain TweetNaCl implementation and encrypts non-indexed fields in every live Dexie business table with XSalsa20-Poly1305, a random 256-bit recovery key and a fresh 192-bit nonce per record write.
 - The draft removes indexes containing customer, supplier, product, invoice and other sensitive business text; only primary/technical relationships and limited enum/status fields remain indexed.
 - The draft adds a recovery-key gate separate from the app PIN, fail-closed key verification, raw IndexedDB plaintext-leakage assertions, wrong-key/tamper/nonce tests and a v6 legacy-writer fencing migration.
-- On commit 1c22153d2a3d, CI passed TypeScript, the full unit/integration suite, the production web build and native Linux/Tauri compilation; CodeQL passed. This is not independent security certification.
+- On encryption commit 5bc68fd993de7b3b60a6f62f98710dc2ef1428b8, CI passed TypeScript, the full unit/integration suite, the production web build, dependency audit and native Linux/Tauri compilation; CodeQL passed. This is not independent security certification.
 
 ## Mandatory production gates
 

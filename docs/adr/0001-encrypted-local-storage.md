@@ -65,7 +65,7 @@ The prototype does not yet provide key wrapping, recovery by a second factor, ke
 - Tests check 24-byte nonce size and fresh nonces on repeated writes.
 - Tests exercise indexed key-only reads and collection modifications.
 - Migration tests verify source/copy equality and legacy-writer fencing.
-- At commit 1c22153d2a3d, GitHub CI passed typecheck, the full unit/integration suite, production build and native Linux/Tauri compile. CodeQL also passed. These checks establish code/build behavior only; they do not constitute a cryptographic audit or device-level security verification.
+- At encryption commit 5bc68fd993de7b3b60a6f62f98710dc2ef1428b8, GitHub CI passed typecheck, the full unit/integration suite, production build, dependency audit and native Linux/Tauri compile. CodeQL also passed. These checks establish code/build behavior only; they do not constitute a cryptographic audit or device-level security verification.
 
 ## Production release gates
 
