@@ -394,6 +394,28 @@ export class AInvoiceDatabase extends Dexie {
   }
 }
 
+class LegacyMigrationDatabase extends AInvoiceDatabase {
+  constructor() {
+    super(LEGACY_DATABASE_NAME, false);
+    // Opening v6 forces older v5 AInvoice windows to receive a versionchange
+    // event and close before the migration snapshot is taken. The stores and
+    // indexes are intentionally unchanged: this is a writer-fencing upgrade,
+    // not a data transformation.
+    this.version(6).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      suppliers: "++id,name,phone,active",
+      purchases: "++id,&purchaseNo,dateISO,supplierName,supplierId,paymentStatus,status",
+      supplierPayments: "++id,purchaseId,purchaseNo,supplierId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    });
+  }
+}
+
 export const db = new AInvoiceDatabase(ENCRYPTED_DATABASE_NAME, true);
 
 type LegacySnapshot = {
@@ -506,7 +528,7 @@ async function deleteLegacyDatabase(): Promise<boolean> {
 }
 
 async function reconcileLegacyDatabase(): Promise<boolean> {
-  const legacy = new AInvoiceDatabase(LEGACY_DATABASE_NAME, false);
+  const legacy = new LegacyMigrationDatabase();
   try {
     await legacy.open();
     const source = await readSnapshot(legacy);
