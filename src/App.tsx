@@ -26,7 +26,7 @@ function money(n: number, code = "INR", locale = "en-IN") { try { return new Int
 function dateLabel(v: string | number, locale = "en-IN") { const d = typeof v === "number" ? new Date(v) : new Date(v.slice(0,10)+"T12:00:00"); return new Intl.DateTimeFormat(locale,{day:"2-digit",month:"short",year:"numeric"}).format(d); }
 function localLocale(l: Locale) { return l === "hi" ? "hi-IN" : l === "mr" ? "mr-IN" : "en-IN"; }
 function downloadStatement(content: string, filename: string): void {
-  const blob = new Blob(["\\uFEFF", content], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
