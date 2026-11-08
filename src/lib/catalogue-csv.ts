@@ -195,28 +195,31 @@ export function previewProductCsv(
 
   for (const record of dataRecords) {
     try {
-      if (record.fields.length !== headers.length) {
-        throw new Error("Expected " + headers.length + " columns but found " + record.fields.length + ".");
+      if (record.fields.length > headers.length) {
+        throw new Error("Expected no more than " + headers.length + " columns but found " + record.fields.length + ".");
       }
-      const name = cell(record.fields, columns, "name");
-      const sku = cell(record.fields, columns, "sku").toUpperCase();
-      const unit = cell(record.fields, columns, "unit") || "pcs";
+      // Spreadsheet exports often omit empty cells at the end of a row.
+      // Pad only missing trailing cells; required-column checks still apply.
+      const rowFields = [...record.fields, ...Array(headers.length - record.fields.length).fill("")];
+      const name = cell(rowFields, columns, "name");
+      const sku = cell(rowFields, columns, "sku").toUpperCase();
+      const unit = cell(rowFields, columns, "unit") || "pcs";
       if (!name || name.length > 160) throw new Error("Item name is required and must be 160 characters or fewer.");
       if (!sku || sku.length > 64) throw new Error("SKU is required and must be 64 characters or fewer.");
       if (unit.length > 24) throw new Error("Unit must be 24 characters or fewer.");
       if (seenSkus.has(sku)) throw new Error("SKU " + sku + " already exists or is repeated in this file.");
 
-      const salePriceMinor = decimalToMinor(cell(record.fields, columns, "sale_price"), "Sale price");
-      const purchaseText = cell(record.fields, columns, "purchase_price");
+      const salePriceMinor = decimalToMinor(cell(rowFields, columns, "sale_price"), "Sale price");
+      const purchaseText = cell(rowFields, columns, "purchase_price");
       const purchasePriceMinor = purchaseText ? decimalToMinor(purchaseText, "Purchase price") : 0;
-      const taxText = cell(record.fields, columns, "tax_rate");
+      const taxText = cell(rowFields, columns, "tax_rate");
       const taxRateBps = taxText ? percentToBasisPoints(taxText) : 0;
-      const stockText = cell(record.fields, columns, "stock_quantity");
-      const reorderText = cell(record.fields, columns, "reorder_level");
+      const stockText = cell(rowFields, columns, "stock_quantity");
+      const reorderText = cell(rowFields, columns, "reorder_level");
       const stockQuantityMilli = stockText ? decimalToMilli(stockText, "Stock quantity") : 0;
       const reorderLevelMilli = reorderText ? decimalToMilli(reorderText, "Reorder level") : 0;
-      const trackStock = parseBoolean(cell(record.fields, columns, "track_stock"), "Track stock", true);
-      const active = parseBoolean(cell(record.fields, columns, "active"), "Active", true);
+      const trackStock = parseBoolean(cell(rowFields, columns, "track_stock"), "Track stock", true);
+      const active = parseBoolean(cell(rowFields, columns, "active"), "Active", true);
 
       products.push({
         name,
@@ -283,5 +286,7 @@ export function exportProductsCsv(products: readonly Product[]): string {
 }
 
 export function createProductCsvTemplate(): string {
-  return csvDocument([PRODUCT_CSV_HEADERS.slice()]);
+  // Header names are simple identifiers, so leave them unquoted for easier
+  // inspection and editing in spreadsheet applications.
+  return PRODUCT_CSV_HEADERS.join(",") + "\\r\\n";
 }
