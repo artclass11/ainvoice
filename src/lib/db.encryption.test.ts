@@ -190,8 +190,10 @@ describe("live IndexedDB record encryption", () => {
 
     await database.invoices.where("paymentStatus").equals("due").modify(invoice => {
       invoice.notes = "Changed private note";
+      invoice.paymentStatus = "paid";
     });
     expect((await database.invoices.get(8))?.notes).toBe("Changed private note");
+    expect((await database.invoices.get(8))?.paymentStatus).toBe("paid");
 
     const raw = JSON.stringify(await readRawRows("invoices"));
     expect(raw).not.toContain("Sensitive Customer");
@@ -220,6 +222,35 @@ describe("live IndexedDB record encryption", () => {
     // Moving an intact envelope to a different primary key is also detected.
     await writeRawRow("invoices", { ...raw, id: 23 });
     await expect(database.invoices.get(23)).rejects.toThrow(/index metadata authentication/i);
+  });
+
+  it("authenticates the generated auto-increment ID before the write transaction completes", async () => {
+    const key = new Uint8Array(32).fill(37);
+    database = new AInvoiceDatabase(databaseName, true, () => key, () => true);
+    await database.open();
+    const id = await database.products.add({
+      name: "Generated-ID Product",
+      sku: "GENERATED-ID-SKU",
+      unit: "pcs",
+      salePriceMinor: 1000,
+      purchasePriceMinor: 500,
+      taxRateBps: 0,
+      stockQuantityMilli: 10,
+      reorderLevelMilli: 0,
+      trackStock: true,
+      active: true,
+      createdAt: 1,
+      updatedAt: 1
+    });
+    expect(Number.isSafeInteger(id)).toBe(true);
+    expect((await database.products.get(id))?.name).toBe("Generated-ID Product");
+
+    const rows = await readRawRows("products");
+    const stored = rows.find(row => row.id === id)!;
+    expect(stored.__encryptedData).toBeDefined();
+    expect(stored.name).toBeUndefined();
+    await writeRawRow("products", { ...stored, id: Number(id) + 1 });
+    await expect(database.products.get(Number(id) + 1)).rejects.toThrow(/index metadata authentication/i);
   });
 
   it("uses a fresh nonce for every record write and generates a 256-bit recovery key", async () => {

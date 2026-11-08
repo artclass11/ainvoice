@@ -216,12 +216,49 @@ export function installRecordEncryption(
                 });
               });
             },
-            mutate(request: any) {
+            async mutate(request: any) {
               if (request.type !== "add" && request.type !== "put") return table.mutate(request);
+              const primaryKey = table.schema.primaryKey?.keyPath;
+              const usesGeneratedKey = table.schema.primaryKey?.autoIncrement === true &&
+                typeof primaryKey === "string";
+              const generated = usesGeneratedKey
+                ? request.values.map((value: Record<string, unknown>) => value[primaryKey] === undefined)
+                : request.values.map(() => false);
               const values = request.values.map((value: Record<string, unknown>) =>
                 encryptRecord(tableName, table.schema, value, key())
               );
-              return table.mutate({ ...request, values });
+              const result = await table.mutate({ ...request, values });
+
+              // IndexedDB assigns an inline auto-increment key only after the
+              // first write. Re-encrypt each successful generated-key row in
+              // the same transaction with that assigned key authenticated.
+              // No other transaction can observe the intermediate envelope.
+              for (let index = 0; index < generated.length; index += 1) {
+                if (!generated[index] || result.failures?.[index]) continue;
+                const assignedKey = result.results?.[index];
+                if (assignedKey === undefined || assignedKey === null) {
+                  throw new Error("The encrypted database could not bind a generated record ID.");
+                }
+                const raw = await table.get({ trans: request.trans, key: assignedKey });
+                if (!raw) throw new Error("The encrypted database could not verify a newly written record.");
+                const decrypted = decryptRecord(tableName, table.schema, raw, key());
+                if (!decrypted) throw new Error("The encrypted database returned an empty generated record.");
+                const bound = encryptRecord(
+                  tableName,
+                  table.schema,
+                  { ...decrypted, [primaryKey]: assignedKey },
+                  key()
+                );
+                const rebound = await table.mutate({
+                  type: "put",
+                  trans: request.trans,
+                  values: [bound]
+                });
+                if (rebound.numFailures) {
+                  throw rebound.failures[0] ?? new Error("Could not authenticate the generated record ID.");
+                }
+              }
+              return result;
             }
           };
         }

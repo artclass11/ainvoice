@@ -17,6 +17,7 @@ The prototype encrypts each business-record payload synchronously in the Dexie D
 - A cryptographically random 256-bit key is generated with the platform CSPRNG when the encrypted database is first initialized.
 - The key is displayed once as 64 hexadecimal characters. The user must save it separately and enter it whenever AInvoice starts. It is not persisted alongside the database, derived from the short PIN, or recoverable by the application.
 - Each record write receives a new random 192-bit nonce. Secretbox authenticates ciphertext, so modified or incorrect-key records fail closed.
+- All persisted visible primary/relationship/status fields are included in the authenticated payload metadata. For an IndexedDB-generated inline primary key, the middleware performs the initial insert and then re-encrypts the record with the assigned key in the same transaction before it can commit; changing that row ID later is detected as tampering.
 - The decrypted key is held in process memory only and zeroed on explicit lock, inactivity/background lock, and database close. JavaScript memory wiping is best-effort; garbage-collected copies and runtime snapshots cannot be guaranteed erased.
 - The encrypted database is named ainvoice-secure-v1. A key-verifier record is stored separately from business tables to detect a wrong key before the app opens its workspace.
 - There is no plaintext fallback. A missing verifier in a database that already contains records, a missing record envelope, malformed data, wrong key, or failed authentication stops access.
