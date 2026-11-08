@@ -38,7 +38,11 @@ export interface Invoice {
   status: InvoiceStatus;
   notes?: string;
   currencyCode: string;
-  schemaVersion: 1;
+  businessNameSnapshot?: string;
+  businessPhoneSnapshot?: string;
+  businessAddressSnapshot?: string;
+  businessTaxIdSnapshot?: string;
+  schemaVersion: 1 | 2;
 }
 
 export interface Product {
@@ -186,6 +190,25 @@ class AInvoiceDatabase extends Dexie {
         value.taxId = value.taxId ?? "";
         value.invoicePrefix = value.invoicePrefix ?? "AI";
         value.invoiceSequence = Math.max(value.invoiceSequence ?? 0, highestExistingSequence);
+      });
+    });
+
+    this.version(3).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    }).upgrade(async (tx) => {
+      const business = await tx.table("settings").get("main") as Record<string, unknown> | undefined;
+      await tx.table("invoices").toCollection().modify((invoice: Record<string, any>) => {
+        invoice.businessNameSnapshot = invoice.businessNameSnapshot ?? business?.businessName ?? "";
+        invoice.businessPhoneSnapshot = invoice.businessPhoneSnapshot ?? business?.phone ?? "";
+        invoice.businessAddressSnapshot = invoice.businessAddressSnapshot ?? business?.address ?? "";
+        invoice.businessTaxIdSnapshot = invoice.businessTaxIdSnapshot ?? business?.taxId ?? "";
+        invoice.schemaVersion = 2;
       });
     });
   }

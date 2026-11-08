@@ -358,16 +358,27 @@ function PaymentModal({invoice,locale,fmt,onClose,onSaved}:{invoice:Invoice;loca
 }
 
 function InvoiceModal({invoice,settings,locale,fmt,onClose,onPay,onVoided}:{invoice:Invoice;settings:DeviceSettings;locale:Locale;fmt:(v:number)=>string;onClose:()=>void;onPay:()=>void;onVoided:()=>void}) {
-  const t=(k:MessageKey)=>translate(locale,k);const [showVoid,setShowVoid]=useState(false);const [reason,setReason]=useState("");const [error,setError]=useState("");
-  async function doVoid(){try{await voidInvoice(invoice.id!,reason);onVoided();}catch(err){setError(err instanceof Error?err.message:"Could not void bill.");}}
+  const t=(k:MessageKey)=>translate(locale,k);
+  const [showVoid,setShowVoid]=useState(false);const [reason,setReason]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
+  const sellerName=invoice.businessNameSnapshot??settings.businessName;
+  const sellerAddress=invoice.businessAddressSnapshot??settings.address;
+  const sellerPhone=invoice.businessPhoneSnapshot??settings.phone;
+  const sellerTaxId=invoice.businessTaxIdSnapshot??settings.taxId;
+  async function doVoid(){
+    if(busy)return;
+    setBusy(true);setError("");
+    try{await voidInvoice(invoice.id!,reason);onVoided();}
+    catch(err){setError(err instanceof Error?err.message:"Could not void bill.");}
+    finally{setBusy(false);}
+  }
   return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow={invoice.invoiceNo} title={t("billDetails")} subtitle={invoice.customerName} onClose={onClose}/>
-    <div className="bill-print-area"><div className="receipt-header"><div><h2>{settings.businessName}</h2>{settings.address&&<p>{settings.address}</p>}{settings.phone&&<p>{settings.phone}</p>}{settings.taxId&&<p>{t("taxId")}: {settings.taxId}</p>}</div><div className="receipt-brand">AInvoice</div></div>
+    <div className="bill-print-area"><div className="receipt-header"><div><h2>{sellerName}</h2>{sellerAddress&&<p>{sellerAddress}</p>}{sellerPhone&&<p>{sellerPhone}</p>}{sellerTaxId&&<p>{t("taxId")}: {sellerTaxId}</p>}</div><div className="receipt-brand">AInvoice</div></div>
       <div className="receipt-meta"><span><strong>{t("invoice")}:</strong> {invoice.invoiceNo}</span><span><strong>{t("date")}:</strong> {dateLabel(invoice.dateISO)}</span><span><strong>{t("customer")}:</strong> {invoice.customerName}</span></div>
       <div className="table-wrap"><table className="invoice-table receipt-table"><thead><tr><th>{t("item")}</th><th>{t("quantity")}</th><th>{t("unitPrice")}</th><th>{t("discount")}</th><th>{t("tax")}</th><th>{t("amount")}</th></tr></thead><tbody>{invoice.lines.map((l,i)=><tr key={i}><td>{l.description}</td><td>{l.quantity} {l.unit}</td><td>{fmt(l.unitPriceMinor)}</td><td>{fmt(l.discountMinor)}</td><td>{l.taxRateBps/100}%</td><td>{fmt(l.totalMinor)}</td></tr>)}</tbody></table></div>
       <div className="receipt-totals"><div><span>{t("subtotal")}</span><strong>{fmt(invoice.subtotalMinor)}</strong></div><div><span>{t("discount")}</span><strong>{fmt(invoice.discountMinor)}</strong></div><div><span>{t("taxAmount")}</span><strong>{fmt(invoice.taxMinor)}</strong></div><div className="receipt-grand"><span>{t("total")}</span><strong>{fmt(invoice.totalMinor)}</strong></div><div><span>{t("alreadyPaid")}</span><strong>{fmt(invoice.paidMinor)}</strong></div><div><span>{t("amountDue")}</span><strong>{fmt(invoice.totalMinor-invoice.paidMinor)}</strong></div></div>
       {invoice.notes&&<p className="receipt-note">{t("notes")}: {invoice.notes}</p>}<div className="receipt-foot">Thank you for your business.</div>
     </div>
-    {error&&<div className="form-error">{error}</div>}{showVoid&&<div className="void-box"><Field label={t("voidReason")}><input value={reason} onChange={e=>setReason(e.target.value)}/></Field><button className="danger-button" onClick={doVoid}>{t("confirmVoid")}</button></div>}
+    {error&&<div className="form-error">{error}</div>}{showVoid&&<div className="void-box"><Field label={t("voidReason")}><input value={reason} onChange={e=>setReason(e.target.value)}/></Field><button className="danger-button" onClick={doVoid} disabled={busy}>{busy?"Saving…":t("confirmVoid")}</button></div>}
     <div className="modal-actions print-actions"><button className="secondary-button" onClick={onClose}>{t("close")}</button>{invoice.status==="issued"&&invoice.totalMinor>invoice.paidMinor&&<button className="secondary-button" onClick={onPay}><Wallet size={15}/>{t("collectPayment")}</button>}{invoice.status==="issued"&&invoice.paidMinor===0&&<button className="danger-button" onClick={()=>setShowVoid(v=>!v)}>{t("void")}</button>}<button className="primary-button" onClick={()=>window.print()}><Printer size={15}/>{t("printBill")}</button></div>
   </ModalFrame>;
 }

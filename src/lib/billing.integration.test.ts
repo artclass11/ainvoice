@@ -80,6 +80,10 @@ describe("transactional billing workflows", () => {
     });
 
     expect(invoice.customerName).toBe("Walk-in trade customer");
+    expect(invoice.businessNameSnapshot).toBe("Test Store");
+    expect(invoice.businessAddressSnapshot).toBe("");
+    await db.settings.update("main", { businessName: "Renamed Store", address: "New Address" });
+    expect((await db.invoices.get(invoice.id!))?.businessNameSnapshot).toBe("Test Store");
     expect(invoice.totalMinor).toBe(35000);
     expect(invoice.paidMinor).toBe(5000);
     expect(invoice.paymentStatus).toBe("partial");

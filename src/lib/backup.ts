@@ -250,7 +250,13 @@ function validateBackupTables(rawTables: unknown): asserts rawTables is Record<B
     if (value.status !== "issued" && value.status !== "void") fail("Invoice status is invalid.");
     if (value.status === "void" && paidMinor > 0) fail("A void invoice cannot contain unrefunded payments.");
     if (!/^[A-Z]{3}$/.test(requireString(value.currencyCode, "Invoice currency", 3))) fail("Invoice currency code is invalid.");
-    if (value.schemaVersion !== 1) fail("Invoice schema version is unsupported.");
+    if (value.schemaVersion !== 1 && value.schemaVersion !== 2) fail("Invoice schema version is unsupported.");
+    if (value.schemaVersion === 2) {
+      requireString(value.businessNameSnapshot, "Invoice seller name", 160);
+      requireString(value.businessPhoneSnapshot, "Invoice seller phone", 40);
+      requireString(value.businessAddressSnapshot, "Invoice seller address", 1000);
+      requireString(value.businessTaxIdSnapshot, "Invoice seller tax ID", 80);
+    }
     if (value.notes !== undefined) requireString(value.notes, "Invoice notes", 2000);
     invoiceById.set(id, value);
   }
@@ -435,6 +441,19 @@ export async function restoreEncryptedBackup(file: File, password: string): Prom
   validateBackupPayload(parsed);
 
   const tables = parsed.tables as Record<BackupTableName, unknown[]>;
+  const business = tables.settings[0] as UnknownRecord;
+  // Upgrade older valid backup records to the current immutable invoice snapshot shape.
+  tables.invoices = tables.invoices.map((rawInvoice) => {
+    const invoice = rawInvoice as UnknownRecord;
+    return {
+      ...invoice,
+      businessNameSnapshot: invoice.businessNameSnapshot ?? business.businessName,
+      businessPhoneSnapshot: invoice.businessPhoneSnapshot ?? business.phone,
+      businessAddressSnapshot: invoice.businessAddressSnapshot ?? business.address,
+      businessTaxIdSnapshot: invoice.businessTaxIdSnapshot ?? business.taxId,
+      schemaVersion: 2
+    };
+  });
   await db.transaction(
     "rw",
     [db.settings, db.invoices, db.products, db.customers, db.payments, db.stockMovements, db.auditEvents],

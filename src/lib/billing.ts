@@ -316,7 +316,11 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<Invoice>
         status: "issued",
         notes: input.notes?.trim() || undefined,
         currencyCode: settings.currencyCode || "INR",
-        schemaVersion: 1
+        businessNameSnapshot: settings.businessName,
+        businessPhoneSnapshot: settings.phone,
+        businessAddressSnapshot: settings.address,
+        businessTaxIdSnapshot: settings.taxId,
+        schemaVersion: 2
       };
 
       const invoiceId = await db.invoices.add(invoice);
