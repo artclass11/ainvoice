@@ -26,6 +26,13 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Upload resolved dependency lockfile for reproducibility
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-pnpm-lockfile
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 1
       - name: Type check
         run: pnpm typecheck
       - name: Unit tests
