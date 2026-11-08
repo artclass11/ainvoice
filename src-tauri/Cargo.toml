@@ -1,6 +1,6 @@
 [package]
 name = "ainvoice"
-version = "0.1.0"
+version = "0.1.1"
 description = "Offline-first open-source billing for every business"
 authors = ["AInvoice contributors"]
 edition = "2021"
