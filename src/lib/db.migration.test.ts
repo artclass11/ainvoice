@@ -104,4 +104,44 @@ describe("database schema migrations", () => {
     expect((await current.stockMovements.get(5))?.referenceId).toBeUndefined();
     current.close();
   });
+  it("adds supplier and purchase ledgers in version 5 without changing existing settings", async () => {
+    const legacy = new Dexie(databaseName);
+    legacy.version(4).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    });
+    await legacy.open();
+    await legacy.table("settings").put({
+      id: "main",
+      businessName: "Legacy Shop",
+      locale: "en",
+      currencyCode: "INR",
+      countryCode: "IN",
+      address: "",
+      phone: "",
+      taxId: "",
+      invoicePrefix: "AI",
+      invoiceSequence: 12,
+      createdAt: 100,
+      updatedAt: 100
+    });
+    legacy.close();
+
+    const current = new AInvoiceDatabase(databaseName);
+    await current.open();
+    const settings = await current.settings.get("main");
+    expect(settings?.invoiceSequence).toBe(12);
+    expect(settings?.purchasePrefix).toBe("PUR");
+    expect(settings?.purchaseSequence).toBe(0);
+    expect(await current.suppliers.count()).toBe(0);
+    expect(await current.purchases.count()).toBe(0);
+    expect(await current.supplierPayments.count()).toBe(0);
+    current.close();
+  });
+
 });

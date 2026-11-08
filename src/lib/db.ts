@@ -4,6 +4,7 @@ export type PaymentMethod = "cash" | "upi" | "bank" | "card" | "other";
 export type PaymentStatus = "paid" | "partial" | "due";
 export type InvoiceStatus = "issued" | "void";
 export type StockMovementType = "sale" | "purchase" | "return" | "adjustment";
+export type PurchaseStatus = "received" | "void";
 
 export interface InvoiceLine {
   productId?: number;
@@ -88,13 +89,78 @@ export interface Payment {
   paidAt: number;
 }
 
+export interface Supplier {
+  id?: number;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  taxId: string;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PurchaseLine {
+  productId?: number;
+  sku?: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  unitCostMinor: number;
+  discountMinor: number;
+  taxRateBps: number;
+  taxableMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  /** Whether inventory was received for this line when the document was posted. */
+  stockReceived?: boolean;
+}
+
+export interface Purchase {
+  id?: number;
+  purchaseNo: string;
+  createdAt: number;
+  dateISO: string;
+  supplierId?: number;
+  supplierName: string;
+  lines: PurchaseLine[];
+  subtotalMinor: number;
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  paidMinor: number;
+  paymentStatus: PaymentStatus;
+  status: PurchaseStatus;
+  notes?: string;
+  currencyCode: string;
+  businessNameSnapshot?: string;
+  businessPhoneSnapshot?: string;
+  businessAddressSnapshot?: string;
+  businessTaxIdSnapshot?: string;
+  schemaVersion: 1;
+}
+
+export interface SupplierPayment {
+  id?: number;
+  purchaseId: number;
+  purchaseNo: string;
+  supplierId?: number;
+  supplierName: string;
+  amountMinor: number;
+  method: PaymentMethod;
+  reference: string;
+  note: string;
+  paidAt: number;
+}
+
 export interface StockMovement {
   id?: number;
   productId: number;
   productName: string;
   type: StockMovementType;
   quantityDeltaMilli: number;
-  referenceType: "invoice" | "manual";
+  referenceType: "invoice" | "purchase" | "manual";
   referenceId?: number;
   note: string;
   createdAt: number;
@@ -102,7 +168,7 @@ export interface StockMovement {
 
 export interface AuditEvent {
   id?: number;
-  entityType: "invoice" | "product" | "customer" | "payment" | "stock" | "backup" | "settings";
+  entityType: "invoice" | "product" | "customer" | "payment" | "supplier" | "purchase" | "supplierPayment" | "stock" | "backup" | "settings";
   entityId?: number;
   action: string;
   summary: string;
@@ -121,6 +187,8 @@ export interface DeviceSettings {
   taxId: string;
   invoicePrefix: string;
   invoiceSequence: number;
+  purchasePrefix?: string;
+  purchaseSequence?: number;
   pinSalt?: string;
   pinHash?: string;
   pinFailedAttempts?: number;
@@ -135,6 +203,9 @@ export class AInvoiceDatabase extends Dexie {
   products!: Table<Product, number>;
   customers!: Table<Customer, number>;
   payments!: Table<Payment, number>;
+  suppliers!: Table<Supplier, number>;
+  purchases!: Table<Purchase, number>;
+  supplierPayments!: Table<SupplierPayment, number>;
   stockMovements!: Table<StockMovement, number>;
   auditEvents!: Table<AuditEvent, number>;
 
@@ -235,6 +306,23 @@ export class AInvoiceDatabase extends Dexie {
             movement.referenceId !== undefined || typeof movement.note !== "string") return;
         const invoiceId = invoiceIdsByNumber.get(movement.note);
         if (invoiceId !== undefined) movement.referenceId = invoiceId;
+      });
+    });
+    this.version(5).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      suppliers: "++id,name,phone,active",
+      purchases: "++id,&purchaseNo,dateISO,supplierName,supplierId,paymentStatus,status",
+      supplierPayments: "++id,purchaseId,purchaseNo,supplierId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    }).upgrade(async (tx) => {
+      await tx.table("settings").toCollection().modify((settings: Record<string, any>) => {
+        settings.purchasePrefix = settings.purchasePrefix ?? "PUR";
+        settings.purchaseSequence = settings.purchaseSequence ?? 0;
       });
     });
   }

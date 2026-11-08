@@ -7,7 +7,11 @@ import {
   type Payment,
   type PaymentMethod,
   type PaymentStatus,
-  type Product
+  type Product,
+  type Purchase,
+  type PurchaseLine,
+  type Supplier,
+  type SupplierPayment
 } from "./db";
 
 export interface DraftLineInput {
@@ -24,6 +28,16 @@ export interface DraftLineInput {
 export interface CreateInvoiceInput {
   customerId?: number;
   customerName: string;
+  lines: DraftLineInput[];
+  paidMinor?: number;
+  paymentMethod?: PaymentMethod;
+  paymentReference?: string;
+  notes?: string;
+}
+
+export interface CreatePurchaseInput {
+  supplierId?: number;
+  supplierName: string;
   lines: DraftLineInput[];
   paidMinor?: number;
   paymentMethod?: PaymentMethod;
@@ -595,6 +609,338 @@ export async function saveProduct(
       summary: (id === undefined ? "Created" : "Updated") + " item " + name
     });
     return saved;
+  });
+}
+
+
+function sumSupplierPayments(payments: SupplierPayment[]): number {
+  let total = 0;
+  for (const payment of payments) {
+    assertSafeNonNegativeInteger(payment.amountMinor, "Supplier payment");
+    if (payment.amountMinor === 0) throw new Error("Supplier payment history contains a zero-value entry.");
+    total += payment.amountMinor;
+    assertSafeNonNegativeInteger(total, "Supplier payment history total");
+  }
+  return total;
+}
+
+function assertPurchasePaymentIntegrity(purchase: Purchase, payments: SupplierPayment[]): void {
+  assertSafeNonNegativeInteger(purchase.totalMinor, "Purchase total");
+  assertSafeNonNegativeInteger(purchase.paidMinor, "Purchase paid amount");
+  if (purchase.paidMinor > purchase.totalMinor) {
+    throw new Error("Purchase payment data is inconsistent. Restore a verified backup or contact support.");
+  }
+  if (sumSupplierPayments(payments) !== purchase.paidMinor) {
+    throw new Error("Supplier payment history does not match this purchase. Further changes have been blocked.");
+  }
+  if (purchase.paymentStatus !== getPaymentStatus(purchase.paidMinor, purchase.totalMinor)) {
+    throw new Error("Purchase payment status is inconsistent. Further changes have been blocked.");
+  }
+}
+
+export async function saveSupplier(
+  input: Omit<Supplier, "id" | "createdAt" | "updatedAt">,
+  id?: number
+): Promise<number> {
+  const name = input.name.trim();
+  const phone = input.phone.trim();
+  const email = input.email.trim();
+  const address = input.address.trim();
+  const taxId = input.taxId.trim();
+  if (!name) throw new Error("Enter a supplier name.");
+  if (name.length > 160 || phone.length > 40 || email.length > 254 || address.length > 1000 || taxId.length > 80) {
+    throw new Error("Supplier details exceed the supported length.");
+  }
+  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    throw new Error("Enter a valid supplier email address.");
+  }
+  if (typeof input.active !== "boolean") throw new Error("Supplier active status must be selected.");
+  if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) throw new Error("Select a valid supplier.");
+
+  return db.transaction("rw", db.suppliers, db.auditEvents, async () => {
+    const old = id !== undefined ? await db.suppliers.get(id) : undefined;
+    if (id !== undefined && !old) throw new Error("The supplier no longer exists. Refresh and try again.");
+    const now = Date.now();
+    const saved = await db.suppliers.put({
+      ...input, name, phone, email, address, taxId, id,
+      createdAt: old?.createdAt ?? now,
+      updatedAt: now
+    });
+    await addAuditEvent({
+      entityType: "supplier",
+      entityId: saved,
+      action: id === undefined ? "created" : "updated",
+      summary: (id === undefined ? "Created" : "Updated") + " supplier " + name
+    });
+    return saved;
+  });
+}
+
+export async function createPurchase(input: CreatePurchaseInput): Promise<Purchase> {
+  if (input.supplierId !== undefined && (!Number.isSafeInteger(input.supplierId) || input.supplierId <= 0)) {
+    throw new Error("Select a valid supplier.");
+  }
+  if (input.notes !== undefined && (typeof input.notes !== "string" || input.notes.length > 2000)) {
+    throw new Error("Purchase notes must be 2,000 characters or fewer.");
+  }
+  if (input.paymentReference !== undefined &&
+      (typeof input.paymentReference !== "string" || input.paymentReference.length > 160)) {
+    throw new Error("Payment reference must be 160 characters or fewer.");
+  }
+
+  const totals = calculateInvoiceTotals(input.lines);
+  const paidMinor = input.paidMinor ?? 0;
+  assertSafeNonNegativeInteger(paidMinor, "Supplier payment");
+  if (paidMinor > totals.totalMinor) throw new Error("Payment must be between zero and the purchase total.");
+  const paymentMethod = input.paymentMethod ?? "cash";
+  if (!isPaymentMethod(paymentMethod)) throw new Error("Choose a valid supplier payment method.");
+  const now = new Date();
+  const dateISO = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+
+  return db.transaction(
+    "rw",
+    [db.settings, db.suppliers, db.purchases, db.supplierPayments, db.products, db.stockMovements, db.auditEvents],
+    async () => {
+      const settings = await db.settings.get("main");
+      if (!settings) throw new Error("Set up the business profile before recording a purchase.");
+      const prefix = (settings.purchasePrefix ?? "PUR").trim().toUpperCase();
+      if (!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(prefix)) {
+        throw new Error("Purchase prefix must be 1–10 letters, numbers or hyphens.");
+      }
+      const currentSequence = settings.purchaseSequence ?? 0;
+      if (!Number.isSafeInteger(currentSequence) || currentSequence < 0 || currentSequence >= Number.MAX_SAFE_INTEGER) {
+        throw new Error("Purchase number sequence is invalid. Contact support before recording another purchase.");
+      }
+      const sequence = currentSequence + 1;
+      const purchaseNo = prefix + "-" + String(now.getFullYear()).slice(-2) +
+        String(now.getMonth() + 1).padStart(2, "0") + "-" + String(sequence).padStart(5, "0");
+
+      let supplier: Supplier | undefined;
+      if (input.supplierId !== undefined) {
+        supplier = await db.suppliers.get(input.supplierId);
+        if (!supplier || !supplier.active) throw new Error("The selected supplier no longer exists or is inactive.");
+      }
+      const supplierName = supplier?.name ?? input.supplierName.trim();
+      if (!supplierName) throw new Error("Enter a supplier name.");
+      if (supplierName.length > 160) throw new Error("Supplier name must be 160 characters or fewer.");
+
+      const purchaseLines: PurchaseLine[] = [];
+      const stockMovementIds: number[] = [];
+      for (const line of totals.lines) {
+        if (!line.productId) {
+          purchaseLines.push({
+            productId: undefined,
+            sku: line.sku,
+            description: line.description,
+            unit: line.unit,
+            quantity: line.quantity,
+            unitCostMinor: line.unitPriceMinor,
+            discountMinor: line.discountMinor,
+            taxRateBps: line.taxRateBps,
+            taxableMinor: line.taxableMinor,
+            taxMinor: line.taxMinor,
+            totalMinor: line.totalMinor,
+            stockReceived: false
+          });
+          continue;
+        }
+
+        const product = await db.products.get(line.productId);
+        if (!product || !product.active) throw new Error("Item not found or inactive: " + line.description);
+        const quantityMilli = quantityToMilli(line.quantity);
+        const stockReceived = product.trackStock;
+        if (stockReceived) {
+          assertSafeNonNegativeInteger(product.stockQuantityMilli, "Current product stock");
+          const nextStock = product.stockQuantityMilli + quantityMilli;
+          assertSafeNonNegativeInteger(nextStock, "Received stock");
+          await db.products.update(product.id!, {
+            stockQuantityMilli: nextStock,
+            purchasePriceMinor: line.unitPriceMinor,
+            updatedAt: Date.now()
+          });
+          const movementId = await db.stockMovements.add({
+            productId: product.id!,
+            productName: product.name,
+            type: "purchase",
+            quantityDeltaMilli: quantityMilli,
+            referenceType: "purchase",
+            note: purchaseNo,
+            createdAt: Date.now()
+          });
+          stockMovementIds.push(movementId);
+        } else {
+          await db.products.update(product.id!, {
+            purchasePriceMinor: line.unitPriceMinor,
+            updatedAt: Date.now()
+          });
+        }
+        const snapshot: PurchaseLine = {
+          productId: line.productId,
+          sku: line.sku,
+          description: line.description,
+          unit: line.unit,
+          quantity: line.quantity,
+          unitCostMinor: line.unitPriceMinor,
+          discountMinor: line.discountMinor,
+          taxRateBps: line.taxRateBps,
+          taxableMinor: line.taxableMinor,
+          taxMinor: line.taxMinor,
+          totalMinor: line.totalMinor,
+          stockReceived
+        };
+        purchaseLines.push(snapshot);
+      }
+
+      const purchase: Purchase = {
+        purchaseNo,
+        createdAt: Date.now(),
+        dateISO,
+        supplierId: supplier?.id,
+        supplierName,
+        lines: purchaseLines,
+        subtotalMinor: totals.subtotalMinor,
+        discountMinor: totals.discountMinor,
+        taxMinor: totals.taxMinor,
+        totalMinor: totals.totalMinor,
+        paidMinor,
+        paymentStatus: getPaymentStatus(paidMinor, totals.totalMinor),
+        status: "received",
+        notes: input.notes?.trim() || "",
+        currencyCode: settings.currencyCode,
+        businessNameSnapshot: settings.businessName,
+        businessPhoneSnapshot: settings.phone,
+        businessAddressSnapshot: settings.address,
+        businessTaxIdSnapshot: settings.taxId,
+        schemaVersion: 1
+      };
+      const purchaseId = await db.purchases.add(purchase);
+      for (const movementId of stockMovementIds) {
+        await db.stockMovements.update(movementId, { referenceId: purchaseId });
+      }
+      if (paidMinor > 0) {
+        await db.supplierPayments.add({
+          purchaseId,
+          purchaseNo,
+          supplierId: supplier?.id,
+          supplierName,
+          amountMinor: paidMinor,
+          method: paymentMethod,
+          reference: input.paymentReference?.trim() ?? "",
+          note: "Initial payment for " + purchaseNo,
+          paidAt: Date.now()
+        });
+      }
+      await db.settings.update("main", { purchaseSequence: sequence });
+      await addAuditEvent({
+        entityType: "purchase",
+        entityId: purchaseId,
+        action: "received",
+        summary: "Received purchase " + purchaseNo + " from " + supplierName
+      });
+      return { ...purchase, id: purchaseId };
+    }
+  );
+}
+
+export async function recordSupplierPayment(input: {
+  purchaseId: number;
+  amountMinor: number;
+  method: PaymentMethod;
+  reference?: string;
+  note?: string;
+}): Promise<Purchase> {
+  if (!Number.isSafeInteger(input.purchaseId) || input.purchaseId <= 0) throw new Error("Select a valid purchase.");
+  assertSafeNonNegativeInteger(input.amountMinor, "Supplier payment");
+  if (input.amountMinor === 0) throw new Error("Enter a supplier payment greater than zero.");
+  if (!isPaymentMethod(input.method)) throw new Error("Choose a valid supplier payment method.");
+  if (input.reference !== undefined && input.reference.length > 160) throw new Error("Payment reference is too long.");
+  if (input.note !== undefined && input.note.length > 1000) throw new Error("Payment note is too long.");
+
+  return db.transaction("rw", db.purchases, db.supplierPayments, db.auditEvents, async () => {
+    const purchase = await db.purchases.get(input.purchaseId);
+    if (!purchase || purchase.status !== "received") throw new Error("The purchase is missing or no longer payable.");
+    const payments = await db.supplierPayments.where("purchaseId").equals(input.purchaseId).toArray();
+    assertPurchasePaymentIntegrity(purchase, payments);
+    const due = purchase.totalMinor - purchase.paidMinor;
+    if (input.amountMinor > due) throw new Error("Supplier payment cannot exceed the purchase balance.");
+    const paidMinor = purchase.paidMinor + input.amountMinor;
+    const paymentStatus = getPaymentStatus(paidMinor, purchase.totalMinor);
+    const updated: Purchase = { ...purchase, paidMinor, paymentStatus };
+    await db.purchases.put(updated);
+    await db.supplierPayments.add({
+      purchaseId: input.purchaseId,
+      purchaseNo: purchase.purchaseNo,
+      supplierId: purchase.supplierId,
+      supplierName: purchase.supplierName,
+      amountMinor: input.amountMinor,
+      method: input.method,
+      reference: input.reference?.trim() ?? "",
+      note: input.note?.trim() ?? "",
+      paidAt: Date.now()
+    });
+    await addAuditEvent({
+      entityType: "supplierPayment",
+      entityId: input.purchaseId,
+      action: "recorded",
+      summary: "Recorded supplier payment " + input.amountMinor + " for " + purchase.purchaseNo
+    });
+    return updated;
+  });
+}
+
+export async function voidPurchase(purchaseId: number, reason: string): Promise<void> {
+  const note = reason.trim();
+  if (note.length < 3 || note.length > 500) throw new Error("Enter a reason up to 500 characters.");
+  if (!Number.isSafeInteger(purchaseId) || purchaseId <= 0) throw new Error("Select a valid purchase.");
+
+  await db.transaction("rw", db.purchases, db.supplierPayments, db.products, db.stockMovements, db.auditEvents, async () => {
+    const purchase = await db.purchases.get(purchaseId);
+    if (!purchase || purchase.status !== "received") throw new Error("Purchase not found or already void.");
+    const payments = await db.supplierPayments.where("purchaseId").equals(purchaseId).toArray();
+    assertPurchasePaymentIntegrity(purchase, payments);
+    if (purchase.paidMinor > 0 || payments.length > 0) {
+      throw new Error("Reconcile supplier payments before voiding this purchase.");
+    }
+
+    const quantities = new Map<number, number>();
+    for (const line of purchase.lines) {
+      if (!line.productId || line.stockReceived === false) continue;
+      const quantity = quantityToMilli(line.quantity);
+      quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + quantity);
+    }
+    for (const [productId, quantity] of quantities) {
+      const product = await db.products.get(productId);
+      if (!product) throw new Error("A linked item is missing. The purchase was not voided.");
+      if (product.stockQuantityMilli < quantity) {
+        throw new Error("Received stock has already been used. The purchase cannot be voided; record a supplier return instead.");
+      }
+      await db.products.update(productId, {
+        stockQuantityMilli: product.stockQuantityMilli - quantity,
+        updatedAt: Date.now()
+      });
+      await db.stockMovements.add({
+        productId,
+        productName: product.name,
+        type: "return",
+        quantityDeltaMilli: -quantity,
+        referenceType: "purchase",
+        referenceId: purchaseId,
+        note: purchase.purchaseNo,
+        createdAt: Date.now()
+      });
+    }
+
+    await db.purchases.update(purchaseId, { status: "void" });
+    await addAuditEvent({
+      entityType: "purchase",
+      entityId: purchaseId,
+      action: "voided",
+      summary: "Voided purchase " + purchase.purchaseNo + ": " + note
+    });
   });
 }
 
