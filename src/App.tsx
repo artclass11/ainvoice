@@ -310,7 +310,7 @@ export default function App() {
         <label className="vault-key-label">{t("vaultKeyLabel")}</label>
         <div className="vault-key-box"><code>{generatedRecoveryKey.match(/.{1,4}/g)?.join(" ")}</code><button type="button" className="secondary-button" onClick={()=>navigator.clipboard?.writeText(generatedRecoveryKey)}><Copy size={15}/> {t("vaultCopyKey")}</button></div>
         <form className="auth-form" onSubmit={event=>{event.preventDefault();if(recoveryConfirmation.trim().replace(/\s+/g,"").toLowerCase()!==generatedRecoveryKey){setVaultError("The recovery key confirmation does not match. Copy and save the complete key first.");return;}void openVault("setup",generatedRecoveryKey);}}>
-          <label>{t("vaultConfirmKey")}<input value={recoveryConfirmation} onChange={event=>setRecoveryConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required/></label>
+          <label>{t("vaultConfirmKey")}<input type="password" value={recoveryConfirmation} onChange={event=>setRecoveryConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required/></label>
           <p className="field-note">{t("vaultMigrationWarning")}</p>
           <button className="primary-button full-button" disabled={vaultBusy || !generatedRecoveryKey}>{vaultBusy?t("vaultWorking"):t("vaultSetupAction")} <ArrowUpRight size={16}/></button>
         </form>
@@ -318,7 +318,7 @@ export default function App() {
         <h1>{t("vaultUnlockTitle")}</h1>
         <p className="auth-subtitle">{t("vaultUnlockHelp")}</p>
         <form className="auth-form" onSubmit={event=>{event.preventDefault();void openVault("unlock",recoveryInput);}}>
-          <label>{t("vaultKeyLabel")}<input value={recoveryInput} onChange={event=>setRecoveryInput(event.target.value)} autoFocus autoComplete="off" spellCheck={false} required/></label>
+          <label>{t("vaultKeyLabel")}<input type="password" value={recoveryInput} onChange={event=>setRecoveryInput(event.target.value)} autoFocus autoComplete="off" spellCheck={false} required/></label>
           <button className="primary-button full-button" disabled={vaultBusy || !recoveryInput.trim()}>{vaultBusy?t("vaultWorking"):t("vaultOpen")} <ArrowUpRight size={16}/></button>
         </form>
         <p className="field-note">{t("pinHint")}</p>
