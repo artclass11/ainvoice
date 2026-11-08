@@ -113,11 +113,24 @@ export function CatalogueTools({
         const currentSkus = new Set(current.map(product => product.sku.trim().toUpperCase()));
         const changed = preview.products.some(product => currentSkus.has(product.sku));
         if (changed) throw new Error(t.duplicateChanged);
-        await db.products.bulkAdd(preview.products.map(product => ({
-          ...product,
-          createdAt: now,
-          updatedAt: now
-        })));
+        for (const product of preview.products) {
+          const productId = await db.products.add({
+            ...product,
+            createdAt: now,
+            updatedAt: now
+          });
+          if (product.trackStock && product.stockQuantityMilli > 0) {
+            await db.stockMovements.add({
+              productId,
+              productName: product.name,
+              type: "adjustment",
+              quantityDeltaMilli: product.stockQuantityMilli,
+              referenceType: "manual",
+              note: "CSV catalogue import opening stock",
+              createdAt: now
+            });
+          }
+        }
         await db.auditEvents.add({
           entityType: "product",
           action: "catalogue_csv_import",
