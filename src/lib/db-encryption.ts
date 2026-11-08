@@ -123,6 +123,7 @@ function encryptRecord(
 
 function decryptRecord(
   tableName: string,
+  schema: any,
   value: Record<string, unknown> | undefined,
   key: Uint8Array
 ): Record<string, unknown> | undefined {
@@ -184,7 +185,7 @@ export function installRecordEncryption(
           if (!encryptedTables.has(tableName)) return table;
           const key = () => keyProvider();
           const decrypt = (value: Record<string, unknown> | undefined) =>
-            decryptRecord(tableName, value, key());
+            decryptRecord(tableName, table.schema, value, key());
 
           return {
             ...table,
