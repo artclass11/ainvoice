@@ -81,6 +81,13 @@ async function makeLegacyV1BackupFile(password = PASSWORD): Promise<File> {
   const settingsRow = legacy.tables.settings[0] as Record<string, unknown>;
   delete settingsRow.purchasePrefix;
   delete settingsRow.purchaseSequence;
+  for (const invoice of legacy.tables.invoices as Array<Record<string, unknown>>) {
+    invoice.schemaVersion = 1;
+    delete invoice.businessNameSnapshot;
+    delete invoice.businessPhoneSnapshot;
+    delete invoice.businessAddressSnapshot;
+    delete invoice.businessTaxIdSnapshot;
+  }
   for (const movement of legacy.tables.stockMovements as Array<Record<string, unknown>>) {
     if (movement.referenceType === "invoice") delete movement.referenceId;
   }
@@ -168,6 +175,8 @@ describe("encrypted business backups", () => {
     const movement = (await db.stockMovements.where("type").equals("sale").toArray())[0];
     expect(movement.referenceType).toBe("invoice");
     expect(movement.referenceId).toBe(invoice.id);
+    expect(invoice.schemaVersion).toBe(2);
+    expect(invoice.businessNameSnapshot).toBe("Backup Store");
   });
 
   it("does not change existing data when the backup password is incorrect", async () => {
