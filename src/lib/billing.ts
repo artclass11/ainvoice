@@ -573,7 +573,7 @@ export async function saveProduct(
     const old = id !== undefined ? await db.products.get(id) : undefined;
     if (id !== undefined && !old) throw new Error("The item no longer exists. Refresh and try again.");
 
-    const duplicate = await db.products.where("sku").equals(sku).first();
+    const duplicate = (await db.products.toArray()).find(product => product.sku === sku);
     if (duplicate && duplicate.id !== id) throw new Error("That item code is already in use.");
 
     const now = Date.now();

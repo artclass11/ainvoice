@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { db, type DeviceSettings } from "./db";
+import { db, lockEncryptedDatabase, unlockEncryptedDatabase, type DeviceSettings } from "./db";
 import { createInvoice, createPurchase, saveProduct, saveSupplier } from "./billing";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./backup";
 
@@ -22,12 +22,14 @@ const settings: DeviceSettings = {
 };
 
 beforeEach(async () => {
+  lockEncryptedDatabase();
   await db.delete();
-  await db.open();
+  await unlockEncryptedDatabase("8f2d54a1c7e9036b5d0a4e8c2f719b6d3a5e0c8f1b4d7a926e3f5c0b8a1d4e7f", false);
   await db.settings.put({ ...settings });
 });
 
 afterEach(async () => {
+  lockEncryptedDatabase();
   await db.delete();
 });
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, Eye, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, ShoppingCart, Truck, Users, Wallet, X } from "lucide-react";
-import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product, type Purchase, type Supplier, type SupplierPayment, type StockMovement } from "./lib/db";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Copy, Download, Eye, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, ShoppingCart, Truck, Users, Wallet, X } from "lucide-react";
+import { db, detectEncryptedDatabase, getDeviceSettings, lockEncryptedDatabase, saveDeviceSettings, setupEncryptedDatabase, unlockEncryptedDatabase, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product, type Purchase, type Supplier, type SupplierPayment, type StockMovement } from "./lib/db";
+import { createRecoveryKey } from "./lib/db-encryption";
 import { calculateInvoiceTotals, createInvoice, createPurchase, parseMoneyToMinor, recordPayment, recordSupplierPayment, saveCustomer, saveProduct, saveSupplier, voidInvoice, voidPurchase, type DraftLineInput } from "./lib/billing";
 import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/security";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
@@ -24,7 +25,16 @@ function money(n: number, code = "INR", locale = "en-IN") { try { return new Int
 function dateLabel(v: string | number, locale = "en-IN") { const d = typeof v === "number" ? new Date(v) : new Date(v.slice(0,10)+"T12:00:00"); return new Intl.DateTimeFormat(locale,{day:"2-digit",month:"short",year:"numeric"}).format(d); }
 function localLocale(l: Locale) { return l === "hi" ? "hi-IN" : l === "mr" ? "mr-IN" : "en-IN"; }
 
+type VaultState = "checking" | "setup" | "locked" | "unrecognized" | "error" | "ready";
+
 export default function App() {
+  const [vaultState,setVaultState] = useState<VaultState>("checking");
+  const [generatedRecoveryKey,setGeneratedRecoveryKey] = useState("");
+  const [recoveryConfirmation,setRecoveryConfirmation] = useState("");
+  const [recoveryInput,setRecoveryInput] = useState("");
+  const [vaultError,setVaultError] = useState("");
+  const [vaultWarning,setVaultWarning] = useState("");
+  const [vaultBusy,setVaultBusy] = useState(false);
   const [settings,setSettings] = useState<DeviceSettings>();
   const [loading,setLoading] = useState(true);
   const [unlocked,setUnlocked] = useState(false);
@@ -55,29 +65,71 @@ export default function App() {
 
   async function load() {
     const values = await Promise.all([
-      db.invoices.orderBy("createdAt").reverse().toArray(),
-      db.products.orderBy("name").toArray(),
-      db.customers.orderBy("name").toArray(),
-      db.payments.orderBy("paidAt").reverse().toArray(),
-      db.suppliers.orderBy("name").toArray(),
-      db.purchases.orderBy("createdAt").reverse().toArray(),
-      db.supplierPayments.orderBy("paidAt").reverse().toArray(),
-      db.stockMovements.orderBy("createdAt").reverse().toArray(),
-      db.auditEvents.orderBy("createdAt").reverse().limit(20).toArray(),
+      db.invoices.toArray(),
+      db.products.toArray(),
+      db.customers.toArray(),
+      db.payments.toArray(),
+      db.suppliers.toArray(),
+      db.purchases.toArray(),
+      db.supplierPayments.toArray(),
+      db.stockMovements.toArray(),
+      db.auditEvents.toArray(),
       db.settings.get("main")
     ]);
-    setInvoices(values[0]); setProducts(values[1]); setCustomers(values[2]); setPayments(values[3]);
-    setSuppliers(values[4]); setPurchases(values[5]); setSupplierPayments(values[6]);
-    setStockMovements(values[7]); setEvents(values[8]);
-    if (values[9]) setSettings(values[9]);
+    setInvoices(values[0].sort((a,b)=>b.createdAt-a.createdAt));
+    setProducts(values[1].sort((a,b)=>a.name.localeCompare(b.name)));
+    setCustomers(values[2].sort((a,b)=>a.name.localeCompare(b.name)));
+    setPayments(values[3].sort((a,b)=>b.paidAt-a.paidAt));
+    setSuppliers(values[4].sort((a,b)=>a.name.localeCompare(b.name)));
+    setPurchases(values[5].sort((a,b)=>b.createdAt-a.createdAt));
+    setSupplierPayments(values[6].sort((a,b)=>b.paidAt-a.paidAt));
+    setStockMovements(values[7].sort((a,b)=>b.createdAt-a.createdAt));
+    setEvents(values[8].sort((a,b)=>b.createdAt-a.createdAt).slice(0,20));
+    if (values[9]) { setSettings(values[9]); if (values[9].locale) setLocale(values[9].locale); }
   }
+
   useEffect(() => {
     let alive = true;
-    getDeviceSettings().then(v => { if (!alive) return; setSettings(v); if (v?.locale) setLocale(v.locale); })
-      .catch(() => { if (alive) setToast("Could not read local business data."); })
-      .finally(() => { if (alive) setLoading(false); });
+    detectEncryptedDatabase()
+      .then(state => {
+        if (!alive) return;
+        if (state === "new") {
+          setGeneratedRecoveryKey(createRecoveryKey());
+          setVaultState("setup");
+        } else if (state === "existing") {
+          setVaultState("locked");
+        } else {
+          setVaultError("An existing local database does not match a supported AInvoice encrypted format. Its contents have not been changed.");
+          setVaultState("unrecognized");
+        }
+      })
+      .catch(error => {
+        if (!alive) return;
+        setVaultError(error instanceof Error ? error.message : "Could not inspect encrypted local storage.");
+        setVaultState("error");
+      });
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (vaultState !== "ready") return;
+    let alive = true;
+    setLoading(true);
+    getDeviceSettings()
+      .then(v => {
+        if (!alive) return;
+        setSettings(v);
+        if (v?.locale) setLocale(v.locale);
+      })
+      .catch(error => {
+        if (alive) {
+          setVaultError(error instanceof Error ? error.message : "Could not read the encrypted business profile.");
+          setVaultState("error");
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [vaultState]);
   useEffect(() => {
     if (!unlocked) return;
     let alive = true;
@@ -85,8 +137,55 @@ export default function App() {
     return () => { alive = false; };
   }, [unlocked,refresh]);
 
+  function clearBusinessState() {
+    setSettings(undefined);
+    setInvoices([]); setProducts([]); setCustomers([]); setPayments([]);
+    setSuppliers([]); setPurchases([]); setSupplierPayments([]);
+    setStockMovements([]); setEvents([]);
+    setPickedInvoice(undefined); setPickedProduct(undefined); setPickedCustomer(undefined);
+    setPickedSupplier(undefined); setPickedPurchase(undefined); setModal(null);
+  }
+
+  function lockVault() {
+    lockEncryptedDatabase();
+    clearBusinessState();
+    setUnlocked(false);
+    setLoading(true);
+    setRecoveryInput("");
+    setVaultState("locked");
+  }
+
+  async function openVault(kind: "setup" | "unlock", recoveryKey: string) {
+    if (vaultBusy) return;
+    setVaultBusy(true);
+    setVaultError("");
+    try {
+      const legacyRemoved = kind === "setup"
+        ? await setupEncryptedDatabase(recoveryKey)
+        : await unlockEncryptedDatabase(recoveryKey);
+      setRecoveryConfirmation("");
+      setRecoveryInput("");
+      setGeneratedRecoveryKey("");
+      if (!legacyRemoved) {
+        // Never permit writes to the new database while an older plaintext
+        // copy may still be open in another tab and accepting writes.
+        lockEncryptedDatabase();
+        setVaultError(t("vaultLegacyTabs"));
+        setVaultState("locked");
+        return;
+      }
+      setVaultWarning("");
+      setVaultState("ready");
+      setUnlocked(false);
+    } catch (error) {
+      setVaultError(error instanceof Error ? error.message : "Could not unlock encrypted local storage.");
+    } finally {
+      setVaultBusy(false);
+    }
+  }
+
   // Protect unattended counters and shared devices. Returning from the
-  // background requires a fresh PIN; inactivity locks after ten minutes.
+  // background requires both the app PIN and storage recovery key again.
   useEffect(() => {
     if (!unlocked) return;
     let timer: number | undefined;
@@ -99,9 +198,8 @@ export default function App() {
       setPickedProduct(undefined);
       setPickedCustomer(undefined);
       setPickedSupplier(undefined);
-      setPickedPurchase(undefined);
-      setUnlocked(false);
-      setToast("Session locked automatically. Enter your PIN to continue.");
+      lockVault();
+      setToast("Session locked automatically. Enter your storage key and PIN to continue.");
     };
     const resetTimer = () => {
       if (timer !== undefined) window.clearTimeout(timer);
@@ -201,7 +299,38 @@ export default function App() {
     }
   }
 
-  if(loading)return <div className="boot-screen"><div className="brand-mark">A</div><span>AInvoice</span></div>;
+  if(vaultState==="checking" || (vaultState==="ready" && loading)) return <div className="boot-screen"><div className="brand-mark">A</div><span>AInvoice</span></div>;
+  if(vaultState!=="ready") return <div className="auth-screen"><div className="auth-orb auth-orb-one"/><div className="auth-orb auth-orb-two"/>
+    <section className="auth-card"><div className="brand-lockup"><div className="brand-mark">A</div><span>AInvoice</span></div>
+      <div className="auth-eyebrow"><ShieldCheck size={14}/> ENCRYPTED LOCAL BUSINESS STORAGE</div>
+      {vaultState==="setup" ? <>
+        <h1>{t("vaultSetupTitle")}</h1>
+        <p className="auth-subtitle">{t("vaultSetupHelp")}</p>
+        <div className="settings-warning"><CircleHelp size={17}/><p>{t("vaultKeyWarning")}</p></div>
+        <label className="vault-key-label">{t("vaultKeyLabel")}</label>
+        <div className="vault-key-box"><code>{generatedRecoveryKey.match(/.{1,4}/g)?.join(" ")}</code><button type="button" className="secondary-button" onClick={()=>navigator.clipboard?.writeText(generatedRecoveryKey)}><Copy size={15}/> {t("vaultCopyKey")}</button></div>
+        <form className="auth-form" onSubmit={event=>{event.preventDefault();if(recoveryConfirmation.trim().replace(/\s+/g,"").toLowerCase()!==generatedRecoveryKey){setVaultError("The recovery key confirmation does not match. Copy and save the complete key first.");return;}void openVault("setup",generatedRecoveryKey);}}>
+          <label>{t("vaultConfirmKey")}<input type="password" value={recoveryConfirmation} onChange={event=>setRecoveryConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required/></label>
+          <p className="field-note">{t("vaultMigrationWarning")}</p>
+          <button className="primary-button full-button" disabled={vaultBusy || !generatedRecoveryKey}>{vaultBusy?t("vaultWorking"):t("vaultSetupAction")} <ArrowUpRight size={16}/></button>
+        </form>
+      </> : vaultState==="locked" ? <>
+        <h1>{t("vaultUnlockTitle")}</h1>
+        <p className="auth-subtitle">{t("vaultUnlockHelp")}</p>
+        <form className="auth-form" onSubmit={event=>{event.preventDefault();void openVault("unlock",recoveryInput);}}>
+          <label>{t("vaultKeyLabel")}<input type="password" value={recoveryInput} onChange={event=>setRecoveryInput(event.target.value)} autoFocus autoComplete="off" spellCheck={false} required/></label>
+          <button className="primary-button full-button" disabled={vaultBusy || !recoveryInput.trim()}>{vaultBusy?t("vaultWorking"):t("vaultOpen")} <ArrowUpRight size={16}/></button>
+        </form>
+        <p className="field-note">{t("pinHint")}</p>
+      </> : <>
+        <h1>{vaultState==="unrecognized"?t("vaultUnknownTitle"):t("vaultErrorTitle")}</h1>
+        <p className="auth-subtitle">{vaultError || t("vaultUnknownHelp")}</p>
+        <p className="field-note">{t("vaultUnknownHelp")}</p>
+        {vaultState==="error"&&<button className="secondary-button" onClick={()=>{setVaultError("");setVaultState("checking");window.location.reload();}}>Retry</button>}
+      </>}
+      {vaultError&&vaultState!=="unrecognized"&&<div className="toast error-toast">{vaultError}</div>}
+      {vaultWarning&&<div className="settings-warning"><CircleHelp size={17}/><p>{vaultWarning}</p></div>}
+    </section></div>;
   if(!settings||!unlocked)return <div className="auth-screen"><div className="auth-orb auth-orb-one"/><div className="auth-orb auth-orb-two"/>
     <section className="auth-card"><div className="brand-lockup"><div className="brand-mark">A</div><span>AInvoice</span></div>
       <div className="auth-eyebrow"><ShieldCheck size={14}/> OFFLINE-FIRST BUSINESS SOFTWARE</div>
@@ -229,7 +358,7 @@ export default function App() {
         {nav.map(item=>{const Icon=item.icon;return <button key={item.id} className={page===item.id?"nav-item active":"nav-item"} onClick={()=>setPage(item.id)}><Icon size={18}/><span>{t(item.key)}</span>{item.id==="products"&&lowStock>0&&<small>{lowStock}</small>}</button>;})}
       </nav>
       <div className="sidebar-bottom"><div className="local-card"><div className="local-icon"><ShieldCheck size={16}/></div><div><strong>{t("localOnly")}</strong><small>{t("offline")}</small></div><span className="status-dot"/></div>
-        <button className="nav-item lock-action" onClick={()=>setUnlocked(false)}><LogOut size={18}/><span>{t("lock")}</span></button><div className="sidebar-version">AInvoice · Early access</div>
+        <button className="nav-item lock-action" onClick={lockVault}><LogOut size={18}/><span>{t("lock")}</span></button><div className="sidebar-version">AInvoice · Early access</div>
       </div>
     </aside>
     <main className="main-area">

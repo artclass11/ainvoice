@@ -1,76 +1,94 @@
 # ADR 0001: Encrypted local business-data storage
 
-- **Status:** Proposed; proof-of-concept and cross-platform verification required
+- **Status:** Initial IndexedDB encryption prototype implemented on draft PR #9; not approved for production
 - **Date:** 8 November 2026
-- **Scope:** Desktop, Android, iOS and browser/PWA builds
+- **Scope:** Shared Dexie/IndexedDB layer used by browser/PWA and Tauri WebView builds
 
-## Context
+## Context and release boundary
 
-AInvoice currently uses Dexie/IndexedDB for its live business records. Those records are not encrypted at rest. The app PIN is an entry lock and retry deterrent, not a database key. AES-256-GCM protects exported backup files only; it does not protect the live database.
+The main branch and currently published preview releases still use the earlier plaintext live database. The prototype described here is confined to the security/live-encryption-poc branch and draft PR #9. It must not be described as a protection already present in released installers.
 
-This is a release-blocking risk for invoices, customer contact information, tax identifiers, payment history and supplier records. Adding a generic "encrypt" flag or storing a database password beside the database would not close it.
+The app PIN remains an app-entry control and is not an encryption key. Exported backup files use their own password-based AES-256-GCM format; that backup password is separate from the live database recovery key.
 
-## Decision direction
+## Prototype decision
 
-Do not ship a partial encryption implementation or silently fall back to plaintext storage. First prove a storage-provider design on all target platforms.
+The prototype encrypts each business-record payload synchronously in the Dexie DBCore write path using the public-domain TweetNaCl implementation of XSalsa20-Poly1305 secretbox.
 
-### Native Tauri builds
+- A cryptographically random 256-bit key is generated with the platform CSPRNG when the encrypted database is first initialized.
+- The key is displayed once as 64 hexadecimal characters. The user must save it separately and enter it whenever AInvoice starts. It is not persisted alongside the database, derived from the short PIN, or recoverable by the application.
+- Each record write receives a new random 192-bit nonce. Secretbox authenticates ciphertext, so modified or incorrect-key records fail closed.
+- All persisted visible primary/relationship/status fields are included in the authenticated payload metadata. For an IndexedDB-generated inline primary key, the middleware performs the initial insert and then re-encrypts the record with the assigned key in the same transaction before it can commit; changing that row ID later is detected as tampering.
+- The decrypted key is held in process memory only and zeroed on explicit lock, inactivity/background lock, and database close. JavaScript memory wiping is best-effort; garbage-collected copies and runtime snapshots cannot be guaranteed erased.
+- The encrypted database is named ainvoice-secure-v1. A key-verifier record is stored separately from business tables to detect a wrong key before the app opens its workspace.
+- There is no plaintext fallback. A missing verifier in a database that already contains records, a missing record envelope, malformed data, wrong key, or failed authentication stops access.
 
-1. Evaluate SQLCipher as the encrypted SQLite engine. SQLCipher documents whole-database AES-256 encryption, integrity protection and key derivation. Its Community Edition is open source under a BSD-style license with attribution obligations; licensing must be reviewed and the required notice included before shipping.
-2. Do not assume the official Tauri SQL plugin encrypts data. It is an SQLx interface to SQLite/MySQL/PostgreSQL; the plugin documentation does not claim SQLCipher-backed encryption.
-3. Keep key management separate from the database engine. Evaluate the official Tauri Stronghold plugin for protected key material and Argon2-based password derivation, and compare it with native platform stores (Android Keystore, Apple Keychain, Windows Credential Manager/DPAPI and Linux Secret Service). Do not describe Stronghold itself as hardware-backed unless the platform implementation proves that property.
-4. If the native SQLCipher bridge is implemented in Rust, verify the cipher is actually present at runtime and fail closed when it is not. A normal SQLite build can ignore an unknown `PRAGMA cipher_version` or `PRAGMA key`; successful database open alone is not evidence of encryption.
-5. A 4–6 digit app PIN must never be the sole encryption secret. Keep the PIN as a convenience lock only after a high-entropy storage key has been safely unlocked.
+### What remains visible in IndexedDB
 
-### Browser / PWA builds
+Only each row's primary key and the fields needed for non-identifying relationship/status queries remain outside the encrypted payload. The v6 encrypted schema removes searchable indexes for invoice/purchase numbers, names, SKU, dates, phone, email, address, tax ID, notes and other business text. Technical IDs and a limited set of status/method/type enum values remain visible for IndexedDB indexing and referential operations.
 
-The PWA cannot depend on native Tauri plugins. It needs a separately reviewed WebCrypto storage provider using authenticated encryption (AES-GCM), per-install random data keys, a memory-hard password-based key-encryption key, fresh nonces, explicit key versioning and a recovery/rotation plan. A 4–6 digit PIN is not an acceptable wrapping password.
+This is record-payload encryption, not an encrypted database engine. It does not hide record counts, row relationships or the existence of local business data. It is not a substitute for SQLCipher or an operating-system secure key store.
 
-The browser implementation must not advertise "encrypted at rest" until ciphertext—not plaintext business fields—is what is persisted in IndexedDB, and key material is not stored beside it. Browsers do not provide identical OS-key-store guarantees across all platforms; that limitation must be explained.
+## Migration from the legacy database
 
-## Options reviewed
+The encrypted database is separate from the legacy ainvoice-local database. Migration is intended to be non-destructive:
 
-| Option | Decision | Reason |
-|---|---|---|
-| Tauri SQL plugin alone | Reject as encryption solution | Provides SQL database access, but does not document transparent database encryption. |
-| Tauri Stronghold | Evaluate for secret/key storage | Official plugin for secrets and keys, with documented Argon2 initialization and Windows, Linux, macOS, Android and iOS targets. It is not itself a drop-in SQLCipher driver or proof of hardware-backed storage. |
-| SQLCipher + a reviewed native key manager | Preferred native proof-of-concept | Full database-file encryption and integrity checks; requires a Rust bridge and real builds on every platform. |
-| `tauri-plugin-rusqlite2` | Do not adopt without further validation | Its published platform table identifies Android and iOS as untested. |
-| Unreviewed/early-stage libsql encryption wrapper | Spike only, not production path | A plugin claim of cross-platform support or AES encryption is not a substitute for license, cryptographic, maintenance and device testing. |
+1. Before starting, the user should create and verify a password-encrypted backup using the existing app where possible, and save the new live-database recovery key separately.
+2. The migration connection upgrades the legacy Dexie schema from v5 to v6 without changing its table content. That version change fences older v5 app windows; IndexedDB version-change handling requires them to close before the upgrade continues.
+3. Once the upgrade is complete, a single read-only transaction snapshots all ten legacy business tables.
+4. The snapshot is imported into the encrypted database through the same synchronous encryption middleware used for normal writes.
+5. The app reads the encrypted database back, compares every supported table record to the source snapshot, closes and reopens the encrypted database with the supplied key, and compares the records again.
+6. Only after those checks pass does the app request deletion of the legacy database. The new workspace stays locked if deletion is blocked or cannot complete.
+7. If migration fails before the final deletion, the previous database is retained. Existing non-empty encrypted data that does not match the legacy snapshot is never silently overwritten.
 
-## Required migration behavior
+The migration code is covered by synthetic-data tests for copying legacy invoices/settings, verifying the encrypted copy, removing the old database, and waiting for a pre-existing v5 connection to close. Power-loss, disk-full, browser shutdown, simultaneous device tabs and large real-business datasets still require manual testing.
 
-The existing IndexedDB data must never be deleted or overwritten until a verified encrypted migration has completed.
+## Why the live-record cipher is synchronous
 
-1. Create a verified encrypted backup before migration.
-2. Create a new encrypted database using a new random data-encryption key.
-3. Import from a read-only snapshot of the legacy Dexie tables.
-4. Reconcile counts and totals: invoices, issued amounts, collections, customer balances, supplier purchases/payables, product stock and audit events.
-5. Run application-level invariants and a close/reopen verification using the new key.
-6. Commit a migration marker only after every verification passes. Preserve the old data and offer a clear rollback path on failure.
-7. Re-encrypt or wrap keys on password change, device replacement and restore. Never log keys or plaintext records.
+IndexedDB transactions can auto-close while asynchronous WebCrypto operations are pending. The prototype therefore uses a synchronous JavaScript cryptographic implementation inside Dexie's low-level write middleware. This is an implementation trade-off, not a claim that synchronous JavaScript crypto is faster or stronger than a reviewed native database engine. The exact dependency version and upstream source commit are recorded in the repository's vendored license/provenance files.
 
-## Security verification gates
+## Threat boundary and limitations
 
-- Prove database files and their journal/WAL/temp files do not reveal known customer names, phone numbers, tax IDs, invoice numbers or notes in a raw string scan.
-- Prove wrong keys and modified ciphertext fail closed; no empty-database fallback.
-- Prove fresh nonces, key separation, key versioning, rotation and recovery behavior.
-- Test abrupt shutdown, low disk space, backup/restore, migration interruption and rollback.
-- Test latest supported Windows, macOS Intel/Apple Silicon, Linux, Android ARM64 and iOS device/simulator builds, plus supported browser engines for PWA.
-- Threat-model local device compromise, unlocked-device access, backups, logs, crash dumps, clipboard/print/export flows and malicious renderer input.
-- Obtain independent cryptographic review before the product is marketed as protected or enterprise-ready.
+This prototype is intended to prevent a person who only obtains the closed browser/WebView IndexedDB files from reading the encrypted business-record payloads without the recovery key. It does not protect data while AInvoice is unlocked or from:
 
-## Release policy until this ADR is implemented
+- malicious JavaScript, XSS, a compromised app update, browser extension or renderer compromise;
+- malware, administrator/root access, a debugger, memory inspection or a compromised operating system;
+- the recovery key being copied, photographed, pasted into an unsafe location or stored beside the device;
+- browser/WebView caches, crash dumps, old storage snapshots, backups, SSD wear-leveling or forensic recovery of deleted legacy database pages;
+- plaintext deliberately exported, printed, copied, displayed or included in logs.
 
-- Keep the warning visible: the app PIN is not database encryption and live IndexedDB/WebView business records are currently plaintext at rest.
-- Do not use AInvoice as the sole repository for sensitive production or statutory records.
-- Do not describe the current build as secure, encrypted-at-rest, audited or enterprise-ready.
-- Continue to recommend frequent password-encrypted backup exports and separate backup-password storage.
+The prototype does not yet provide key wrapping, recovery by a second factor, key rotation, remote escrow, device replacement automation, hardware-backed storage, or automatic encrypted backup before migration. If the recovery key is lost, the live database is unrecoverable; a separate encrypted backup can only be restored using its own backup password.
+
+## Verification completed in the draft PR
+
+- Raw fake-IndexedDB inspection asserts that customer names, invoice numbers, phone, tax ID, item descriptions and notes are not stored as plaintext business fields.
+- Wrong-key verification and ciphertext-tamper tests fail closed and preserve existing ciphertext.
+- Tests check 24-byte nonce size and fresh nonces on repeated writes.
+- Tests exercise indexed key-only reads and collection modifications.
+- Migration tests verify source/copy equality and legacy-writer fencing.
+- At encryption commit 5bc68fd993de7b3b60a6f62f98710dc2ef1428b8, GitHub CI passed typecheck, the full unit/integration suite, production build, dependency audit and native Linux/Tauri compile. CodeQL also passed. These checks establish code/build behavior only; they do not constitute a cryptographic audit or device-level security verification.
+
+## Production release gates
+
+- Independent review of the DBCore middleware, TweetNaCl integration, nonce lifecycle, key handling and error paths.
+- Raw-storage and forensic-oriented scans of IndexedDB/WebView profiles on Chromium, Firefox, Safari/WebKit, Windows, macOS, Linux, Android and iOS; include old DB remnants, cache, crash and backup files.
+- Real-device migration tests for existing AInvoice versions, multiple open tabs, interrupted migration, low disk, browser/app termination and restore/rollback.
+- An approved recovery and key-rotation design, preferably integrating OS-supported secure key storage where available without claiming identical guarantees on every platform.
+- Full end-to-end workflows for billing, purchasing, search, reports, backups, restore, print and all database write/query/update/delete paths.
+- Independent security/cryptographic review before any public claim of encrypted-at-rest or enterprise security.
+
+## Release policy
+
+- This branch is a draft prototype, not the released security posture. Do not merge or ship it as production-ready until the release gates above are completed and reviewed.
+- Main/default branch and existing preview installers must continue to be treated as having plaintext live local records until an approved encryption release is built and distributed.
+- Keep the warning visible; do not use an unreviewed build as the only copy of statutory or production books.
+- Maintain frequent password-encrypted backup exports, store their password separately, and verify restore on a separate device.
 
 ## References
 
+- TweetNaCl.js upstream source: https://github.com/dchest/tweetnacl-js
+- TweetNaCl public-domain licence: https://github.com/dchest/tweetnacl-js/blob/master/LICENSE
+- Dexie DBCore API: https://dexie.org/docs/DBCore/DBCore
+- Dexie middleware: https://dexie.org/docs/Dexie/Dexie.use()
 - Tauri SQL plugin: https://v2.tauri.app/plugin/sql/
 - Tauri Stronghold plugin: https://tauri.app/plugin/stronghold/
 - SQLCipher source and feature description: https://github.com/sqlcipher/sqlcipher
-- SQLCipher documentation and community licensing: https://www.zetetic.net/sqlcipher/documentation/ and https://www.zetetic.net/sqlcipher/license/
-- Tauri rusqlite2 alternative platform table: https://docs.rs/crate/tauri-plugin-rusqlite2/latest

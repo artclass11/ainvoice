@@ -1,4 +1,11 @@
 import Dexie, { type Table } from "dexie";
+import {
+  createKeyCheck,
+  installRecordEncryption,
+  parseRecoveryKey,
+  verifyKeyCheck,
+  type EncryptedEnvelope
+} from "./db-encryption";
 
 export type PaymentMethod = "cash" | "upi" | "bank" | "card" | "other";
 export type PaymentStatus = "paid" | "partial" | "due";
@@ -197,6 +204,20 @@ export interface DeviceSettings {
   updatedAt: number;
 }
 
+export interface VaultMetaRecord extends EncryptedEnvelope {
+  id: "main";
+}
+
+const ENCRYPTED_TABLES = [
+  "invoices", "settings", "products", "customers", "payments",
+  "suppliers", "purchases", "supplierPayments", "stockMovements", "auditEvents"
+] as const;
+export const ENCRYPTED_DATABASE_NAME = "ainvoice-secure-v1";
+export const LEGACY_DATABASE_NAME = "ainvoice-local";
+
+const runtimeEncryptionKey = new Uint8Array(32);
+let runtimeEncryptionKeyUnlocked = false;
+
 export class AInvoiceDatabase extends Dexie {
   invoices!: Table<Invoice, number>;
   settings!: Table<DeviceSettings, string>;
@@ -208,9 +229,35 @@ export class AInvoiceDatabase extends Dexie {
   supplierPayments!: Table<SupplierPayment, number>;
   stockMovements!: Table<StockMovement, number>;
   auditEvents!: Table<AuditEvent, number>;
+  vaultMeta!: Table<VaultMetaRecord, string>;
 
-  constructor(databaseName = "ainvoice-local") {
+  constructor(
+    databaseName = LEGACY_DATABASE_NAME,
+    encrypted = false,
+    keyProvider: () => Uint8Array = () => runtimeEncryptionKey,
+    keyIsUnlocked: () => boolean = () => runtimeEncryptionKeyUnlocked
+  ) {
     super(databaseName);
+    if (encrypted) {
+      installRecordEncryption(this, keyProvider, ENCRYPTED_TABLES);
+      this.on("ready", async () => {
+        if (!keyIsUnlocked()) throw new Error("Unlock the AInvoice encrypted database before reading business data.");
+        const verifier = await this.vaultMeta.get("main");
+        if (!verifier) {
+          const counts = await Promise.all([
+            this.invoices.count(), this.settings.count(), this.products.count(), this.customers.count(),
+            this.payments.count(), this.suppliers.count(), this.purchases.count(), this.supplierPayments.count(),
+            this.stockMovements.count(), this.auditEvents.count()
+          ]);
+          if (counts.some(count => count > 0)) {
+            throw new Error("The encrypted database is missing its key verifier. No plaintext fallback is allowed.");
+          }
+          await this.vaultMeta.add({ id: "main", ...createKeyCheck(keyProvider()) });
+          return;
+        }
+        verifyKeyCheck(verifier, keyProvider());
+      });
+    }
     this.version(1).stores({
       invoices: "++id,&invoiceNo,dateISO,customerName,paymentStatus,status",
       settings: "id"
@@ -325,10 +372,254 @@ export class AInvoiceDatabase extends Dexie {
         settings.purchaseSequence = settings.purchaseSequence ?? 0;
       });
     });
+
+    if (encrypted) {
+      // Keep only technical/relationship indexes outside the encrypted record
+      // payload. Names, phone numbers, SKUs, document numbers, dates and notes
+      // are intentionally not searchable through persisted IndexedDB indexes.
+      this.version(6).stores({
+        invoices: "++id,customerId,paymentStatus,status",
+        settings: "id",
+        products: "++id",
+        customers: "++id",
+        payments: "++id,invoiceId,customerId,method",
+        suppliers: "++id",
+        purchases: "++id,supplierId,paymentStatus,status",
+        supplierPayments: "++id,purchaseId,supplierId,method",
+        stockMovements: "++id,productId,type,referenceType,referenceId",
+        auditEvents: "++id,entityType,entityId",
+        vaultMeta: "id"
+      });
+    }
   }
 }
 
-export const db = new AInvoiceDatabase();
+class LegacyMigrationDatabase extends AInvoiceDatabase {
+  constructor() {
+    super(LEGACY_DATABASE_NAME, false);
+    // Opening v6 forces older v5 AInvoice windows to receive a versionchange
+    // event and close before the migration snapshot is taken. The stores and
+    // indexes are intentionally unchanged: this is a writer-fencing upgrade,
+    // not a data transformation.
+    this.version(6).stores({
+      invoices: "++id,&invoiceNo,dateISO,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      suppliers: "++id,name,phone,active",
+      purchases: "++id,&purchaseNo,dateISO,supplierName,supplierId,paymentStatus,status",
+      supplierPayments: "++id,purchaseId,purchaseNo,supplierId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    });
+  }
+}
+
+export const db = new AInvoiceDatabase(ENCRYPTED_DATABASE_NAME, true);
+
+type LegacySnapshot = {
+  invoices: Invoice[];
+  settings: DeviceSettings[];
+  products: Product[];
+  customers: Customer[];
+  payments: Payment[];
+  suppliers: Supplier[];
+  purchases: Purchase[];
+  supplierPayments: SupplierPayment[];
+  stockMovements: StockMovement[];
+  auditEvents: AuditEvent[];
+};
+
+const SNAPSHOT_TABLES = [
+  "invoices", "settings", "products", "customers", "payments",
+  "suppliers", "purchases", "supplierPayments", "stockMovements", "auditEvents"
+] as const;
+
+function snapshotHasRecords(snapshot: LegacySnapshot): boolean {
+  return SNAPSHOT_TABLES.some(name => snapshot[name].length > 0);
+}
+
+async function readSnapshot(database: AInvoiceDatabase): Promise<LegacySnapshot> {
+  return database.transaction(
+    "r",
+    [
+      database.invoices, database.settings, database.products, database.customers, database.payments,
+      database.suppliers, database.purchases, database.supplierPayments, database.stockMovements, database.auditEvents
+    ],
+    async () => {
+      const [
+        invoices, settings, products, customers, payments, suppliers, purchases,
+        supplierPayments, stockMovements, auditEvents
+      ] = await Promise.all([
+        database.invoices.toArray(), database.settings.toArray(), database.products.toArray(),
+        database.customers.toArray(), database.payments.toArray(), database.suppliers.toArray(),
+        database.purchases.toArray(), database.supplierPayments.toArray(),
+        database.stockMovements.toArray(), database.auditEvents.toArray()
+      ]);
+      return {
+        invoices, settings, products, customers, payments, suppliers, purchases,
+        supplierPayments, stockMovements, auditEvents
+      };
+    }
+  );
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return "{" + Object.keys(record).filter(key => record[key] !== undefined).sort()
+      .map(key => JSON.stringify(key) + ":" + canonical(record[key])).join(",") + "}";
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
+function equalSnapshots(left: LegacySnapshot, right: LegacySnapshot): boolean {
+  return SNAPSHOT_TABLES.every(name => {
+    const a = left[name].map(canonical).sort();
+    const b = right[name].map(canonical).sort();
+    return a.length === b.length && a.every((item, index) => item === b[index]);
+  });
+}
+
+async function importSnapshot(snapshot: LegacySnapshot): Promise<void> {
+  await db.transaction(
+    "rw",
+    [
+      db.invoices, db.settings, db.products, db.customers, db.payments,
+      db.suppliers, db.purchases, db.supplierPayments, db.stockMovements, db.auditEvents
+    ],
+    async () => {
+      if (snapshot.invoices.length) await db.invoices.bulkAdd(snapshot.invoices);
+      if (snapshot.settings.length) await db.settings.bulkAdd(snapshot.settings);
+      if (snapshot.products.length) await db.products.bulkAdd(snapshot.products);
+      if (snapshot.customers.length) await db.customers.bulkAdd(snapshot.customers);
+      if (snapshot.payments.length) await db.payments.bulkAdd(snapshot.payments);
+      if (snapshot.suppliers.length) await db.suppliers.bulkAdd(snapshot.suppliers);
+      if (snapshot.purchases.length) await db.purchases.bulkAdd(snapshot.purchases);
+      if (snapshot.supplierPayments.length) await db.supplierPayments.bulkAdd(snapshot.supplierPayments);
+      if (snapshot.stockMovements.length) await db.stockMovements.bulkAdd(snapshot.stockMovements);
+      if (snapshot.auditEvents.length) await db.auditEvents.bulkAdd(snapshot.auditEvents);
+    }
+  );
+}
+
+async function deleteLegacyDatabase(): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME);
+    let settled = false;
+    request.onblocked = () => {
+      // Do not hold the opening screen indefinitely because an older tab is
+      // still connected. Keep the verified encrypted copy and report the
+      // incomplete cleanup so the user can close that tab and retry later.
+      if (!settled) { settled = true; resolve(false); }
+    };
+    request.onsuccess = () => {
+      if (!settled) { settled = true; resolve(true); }
+    };
+    request.onerror = () => {
+      if (!settled) {
+        settled = true;
+        reject(request.error ?? new Error("Could not remove the old local database."));
+      }
+    };
+  });
+}
+
+async function reconcileLegacyDatabase(): Promise<boolean> {
+  const legacy = new LegacyMigrationDatabase();
+  try {
+    await legacy.open();
+    const source = await readSnapshot(legacy);
+    let target = await readSnapshot(db);
+    if (snapshotHasRecords(source)) {
+      if (!snapshotHasRecords(target)) {
+        await importSnapshot(source);
+        target = await readSnapshot(db);
+      }
+      if (!equalSnapshots(source, target)) {
+        throw new Error("The encrypted copy does not match the older local records. The original database has been preserved.");
+      }
+    }
+    db.close();
+    await db.open();
+    const reopened = await readSnapshot(db);
+    if (snapshotHasRecords(source) && !equalSnapshots(source, reopened)) {
+      throw new Error("The encrypted database failed its close-and-reopen reconciliation. The original database has been preserved.");
+    }
+    legacy.close();
+    return await deleteLegacyDatabase();
+  } finally {
+    legacy.close();
+  }
+}
+
+function unlockRuntimeKey(recoveryKey: string): void {
+  const parsed = parseRecoveryKey(recoveryKey);
+  runtimeEncryptionKey.set(parsed);
+  parsed.fill(0);
+  runtimeEncryptionKeyUnlocked = true;
+}
+
+function clearRuntimeKey(): void {
+  runtimeEncryptionKey.fill(0);
+  runtimeEncryptionKeyUnlocked = false;
+}
+
+export async function detectEncryptedDatabase(): Promise<"new" | "existing" | "unrecognized"> {
+  if (typeof indexedDB === "undefined") throw new Error("IndexedDB is unavailable in this environment.");
+  return new Promise((resolve, reject) => {
+    let created = false;
+    const request = indexedDB.open(ENCRYPTED_DATABASE_NAME);
+    request.onupgradeneeded = () => {
+      created = true;
+      request.transaction?.abort();
+    };
+    request.onsuccess = () => {
+      const storeNames = Array.from(request.result.objectStoreNames);
+      request.result.close();
+      resolve(storeNames.length === 0 ? "new" : storeNames.includes("vaultMeta") ? "existing" : "unrecognized");
+    };
+    request.onerror = () => {
+      if (created && request.error?.name === "AbortError") resolve("new");
+      else reject(request.error ?? new Error("Could not inspect encrypted local storage."));
+    };
+  });
+}
+
+export async function setupEncryptedDatabase(recoveryKey: string): Promise<boolean> {
+  unlockRuntimeKey(recoveryKey);
+  try {
+    await db.open();
+    return await reconcileLegacyDatabase();
+  } catch (error) {
+    db.close();
+    await db.delete().catch(() => undefined);
+    clearRuntimeKey();
+    throw error;
+  }
+}
+
+export async function unlockEncryptedDatabase(
+  recoveryKey: string,
+  reconcileLegacy = true
+): Promise<boolean> {
+  unlockRuntimeKey(recoveryKey);
+  try {
+    await db.open();
+    return reconcileLegacy ? await reconcileLegacyDatabase() : true;
+  } catch (error) {
+    db.close();
+    clearRuntimeKey();
+    throw error;
+  }
+}
+
+export function lockEncryptedDatabase(): void {
+  db.close();
+  clearRuntimeKey();
+}
 
 export async function getDeviceSettings(): Promise<DeviceSettings | undefined> {
   return db.settings.get("main");
