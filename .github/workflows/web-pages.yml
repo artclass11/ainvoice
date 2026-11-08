@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Build for GitHub Pages project path
         env:
           VITE_BASE_PATH: /ainvoice/

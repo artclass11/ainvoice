@@ -59,7 +59,7 @@ jobs:
         with:
           node-version: 22
       - name: Install frontend dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Generate native platform icons
         run: pnpm tauri icon public/icon.svg
       - name: Build and upload native installer

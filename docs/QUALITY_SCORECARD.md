@@ -24,7 +24,7 @@ This scorecard is an engineering assessment of the current repository state, not
 - Backup imports validate invoice calculations, references and payment reconciliation before replacing data.
 - Restore offers an encrypted pre-restore safety copy.
 - PIN retry delays escalate after repeated failures; an unattended app locks after ten minutes of inactivity or when the app moves to the background.
-- CI now tests the domain, persistence, backup and migration cases; Android SDK setup now builds and verifies a debug ARM64 APK without requesting the removed legacy tools package.
+- CI now tests the domain, persistence, backup and migration cases, installs from a committed frozen pnpm lockfile, and builds/verifies a debug ARM64 Android APK without requesting the removed legacy tools package.
 
 ## Mandatory production gates
 

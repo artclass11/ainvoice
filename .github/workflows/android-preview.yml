@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Initialize Android project
         run: pnpm tauri android init --ci
       - name: Generate Android icons
