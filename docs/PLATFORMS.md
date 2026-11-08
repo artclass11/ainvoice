@@ -7,20 +7,20 @@ AInvoice uses one React/TypeScript frontend with two delivery paths:
 
 The native shell embeds the frontend assets, so the core screen does not need a web server or internet connection at startup. Browser IndexedDB is used by the current local data layer inside the WebView. This is an initial native wrapper and must pass platform QA, storage persistence tests, and restore/recovery tests before it is promoted as a production release.
 
-## Separate platform downloads — v0.1.0 early access
+## Separate platform downloads — latest verified early-access assets
 
-These links point to files that have been verified as assets on the published GitHub release. These preview installers are not production-certified.
+Version 0.1.1 is the newest release. The Mac installers below are verified assets from 0.1.1; Windows and Linux 0.1.1 bundling is being retried after upstream tool-download HTTP 504 errors. Older verified packages remain available.
 
 | Platform | Direct installer |
 |---|---|
-| Windows 10/11 64-bit | [EXE installer](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64-setup.exe) · [MSI installer](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64_en-US.msi) |
-| macOS Apple Silicon | [ARM64 DMG](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_aarch64.dmg) |
-| macOS Intel | [Intel x64 DMG](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64.dmg) |
-| Android ARM64 | [Debug preview APK](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_android_arm64_debug.apk) |
+| Windows 10/11 64-bit | [0.1.0 EXE](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64-setup.exe) · [0.1.0 MSI](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_x64_en-US.msi) |
+| macOS Apple Silicon | [0.1.1 ARM64 DMG](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.1/AInvoice_0.1.1_aarch64.dmg) |
+| macOS Intel | [0.1.1 Intel x64 DMG](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.1/AInvoice_0.1.1_x64.dmg) |
+| Android ARM64 | [0.1.0 debug preview APK](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_android_arm64_debug.apk) |
 | iOS / iPadOS | [iOS signing build workflow](https://github.com/artclass11/ainvoice/actions/workflows/ios.yml) — no installable IPA published yet |
-| Linux x64 | [AppImage](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.AppImage) · [DEB](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.deb) · [RPM](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice-0.1.0-1.x86_64.rpm) |
+| Linux x64 | [0.1.0 AppImage](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.AppImage) · [0.1.0 DEB](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice_0.1.0_amd64.deb) · [0.1.0 RPM](https://github.com/artclass11/ainvoice/releases/download/app-v0.1.0/AInvoice-0.1.0-1.x86_64.rpm) |
 
-The Windows and macOS builds are unsigned early-access packages. Android is a debug-signed preview that cannot receive in-place updates from a future package signed with a permanent private key. iOS requires Apple Developer signing and provisioning before an IPA can be distributed.
+The Mac builds are unsigned early-access packages. Android 0.1.0 is a debug-signed preview and cannot receive in-place updates from a future package signed with a permanent private key. iOS requires Apple Developer signing and provisioning before an IPA can be distributed.
 
 ## Build status
 
