@@ -248,8 +248,34 @@ function BillModal({locale,products,customers,fmt,onClose,onSaved}:{locale:Local
 }
 
 function ProductModal({locale,product,onClose,onSaved}:{locale:Locale;product?:Product;onClose:()=>void;onSaved:()=>void}) {
-  const t=(k:MessageKey)=>translate(locale,k);const [error,setError]=useState("");
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);try{await saveProduct({name:String(f.get("name")||""),sku:String(f.get("sku")||""),unit:String(f.get("unit")||"pcs"),salePriceMinor:parseMoneyToMinor(String(f.get("sale")||"0")),purchasePriceMinor:parseMoneyToMinor(String(f.get("purchase")||"0")),taxRateBps:Math.round(Number(f.get("tax")||0)*100),stockQuantityMilli:Math.round(Number(f.get("stock")||0)*1000),reorderLevelMilli:Math.round(Number(f.get("reorder")||0)*1000),trackStock:f.get("track")==="on",active:f.get("active")==="on"},product?.id);onSaved();}catch(err){setError(err instanceof Error?err.message:"Could not save item.");}}
+  const t=(k:MessageKey)=>translate(locale,k);
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    if(busy)return;
+    setBusy(true);setError("");
+    const f=new FormData(e.currentTarget);
+    try{
+      await saveProduct({
+        name:String(f.get("name")||""),
+        sku:String(f.get("sku")||""),
+        unit:String(f.get("unit")||"pcs"),
+        salePriceMinor:parseMoneyToMinor(String(f.get("sale")||"0")),
+        purchasePriceMinor:parseMoneyToMinor(String(f.get("purchase")||"0")),
+        taxRateBps:Math.round(Number(f.get("tax")||0)*100),
+        stockQuantityMilli:Math.round(Number(f.get("stock")||0)*1000),
+        reorderLevelMilli:Math.round(Number(f.get("reorder")||0)*1000),
+        trackStock:f.get("track")==="on",
+        active:f.get("active")==="on"
+      },product?.id);
+      onSaved();
+    }catch(err){
+      setError(err instanceof Error?err.message:"Could not save item.");
+    }finally{
+      setBusy(false);
+    }
+  }
   return <ModalFrame onClose={onClose}><ModalHeader eyebrow="CATALOGUE" title={product?t("edit"):t("addItem")} onClose={onClose}/><form onSubmit={submit}>
     <Field label={t("itemName")}><input name="name" defaultValue={product?.name||""} required autoFocus/></Field>
     <div className="form-grid-two"><Field label={t("sku")}><input name="sku" defaultValue={product?.sku||""} required/></Field><Field label={t("unit")}><select name="unit" defaultValue={product?.unit||"pcs"}><option value="pcs">{t("unitPcs")}</option><option value="kg">{t("unitKg")}</option><option value="litre">{t("unitLitre")}</option><option value="hour">{t("unitHour")}</option><option value="box">{t("unitBox")}</option></select></Field></div>
@@ -257,13 +283,37 @@ function ProductModal({locale,product,onClose,onSaved}:{locale:Locale;product?:P
     <div className="form-grid-two"><Field label={t("tax")}><select name="tax" defaultValue={String((product?.taxRateBps||0)/100)}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></Field><Field label={t("openingStock")}><input name="stock" type="number" min="0" step="0.001" defaultValue={(product?.stockQuantityMilli||0)/1000}/></Field></div>
     <Field label={t("reorderLevel")}><input name="reorder" type="number" min="0" step="0.001" defaultValue={(product?.reorderLevelMilli||0)/1000}/></Field>
     <label className="check-row"><input name="track" type="checkbox" defaultChecked={product?.trackStock??true}/><span>{t("trackStock")}</span></label><label className="check-row"><input name="active" type="checkbox" defaultChecked={product?.active??true}/><span>{t("active")}</span></label>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button">{t("saveItem")}</button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveItem")}</button></div>
   </form></ModalFrame>;
 }
 
 function CustomerModal({locale,customer,onClose,onSaved}:{locale:Locale;customer?:Customer;onClose:()=>void;onSaved:()=>void}) {
-  const t=(k:MessageKey)=>translate(locale,k);const [error,setError]=useState("");
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);try{await saveCustomer({name:String(f.get("name")||""),phone:String(f.get("phone")||""),email:String(f.get("email")||""),address:String(f.get("address")||""),taxId:String(f.get("tax")||""),creditLimitMinor:parseMoneyToMinor(String(f.get("limit")||"0")),openingBalanceMinor:parseMoneyToMinor(String(f.get("balance")||"0")),active:f.get("active")==="on"},customer?.id);onSaved();}catch(err){setError(err instanceof Error?err.message:"Could not save customer.");}}
+  const t=(k:MessageKey)=>translate(locale,k);
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    if(busy)return;
+    setBusy(true);setError("");
+    const f=new FormData(e.currentTarget);
+    try{
+      await saveCustomer({
+        name:String(f.get("name")||""),
+        phone:String(f.get("phone")||""),
+        email:String(f.get("email")||""),
+        address:String(f.get("address")||""),
+        taxId:String(f.get("tax")||""),
+        creditLimitMinor:parseMoneyToMinor(String(f.get("limit")||"0")),
+        openingBalanceMinor:parseMoneyToMinor(String(f.get("balance")||"0")),
+        active:f.get("active")==="on"
+      },customer?.id);
+      onSaved();
+    }catch(err){
+      setError(err instanceof Error?err.message:"Could not save customer.");
+    }finally{
+      setBusy(false);
+    }
+  }
   return <ModalFrame onClose={onClose}><ModalHeader eyebrow="RELATIONSHIPS" title={customer?t("edit"):t("addCustomer")} onClose={onClose}/><form onSubmit={submit}>
     <Field label={t("customerName")}><input name="name" defaultValue={customer?.name||""} required autoFocus/></Field>
     <div className="form-grid-two"><Field label={t("phone")}><input name="phone" defaultValue={customer?.phone||""}/></Field><Field label={t("email")}><input type="email" name="email" defaultValue={customer?.email||""}/></Field></div>
@@ -271,17 +321,39 @@ function CustomerModal({locale,customer,onClose,onSaved}:{locale:Locale;customer
     <div className="form-grid-two"><Field label={t("taxId")}><input name="tax" defaultValue={customer?.taxId||""}/></Field><Field label={t("creditLimit")}><input name="limit" inputMode="decimal" defaultValue={((customer?.creditLimitMinor||0)/100).toFixed(2)}/></Field></div>
     <Field label={t("balance")}><input name="balance" inputMode="decimal" defaultValue={((customer?.openingBalanceMinor||0)/100).toFixed(2)}/></Field>
     <label className="check-row"><input name="active" type="checkbox" defaultChecked={customer?.active??true}/><span>{t("active")}</span></label>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button">{t("saveCustomer")}</button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveCustomer")}</button></div>
   </form></ModalFrame>;
 }
 
 function PaymentModal({invoice,locale,fmt,onClose,onSaved}:{invoice:Invoice;locale:Locale;fmt:(v:number)=>string;onClose:()=>void;onSaved:()=>void}) {
-  const t=(k:MessageKey)=>translate(locale,k);const due=invoice.totalMinor-invoice.paidMinor;const [error,setError]=useState("");
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);try{await recordPayment({invoiceId:invoice.id!,amountMinor:parseMoneyToMinor(String(f.get("amount")||"0")),method:String(f.get("method")||"cash") as Payment["method"],reference:String(f.get("ref")||""),note:String(f.get("note")||"")});onSaved();}catch(err){setError(err instanceof Error?err.message:"Could not record payment.");}}
+  const t=(k:MessageKey)=>translate(locale,k);
+  const due=invoice.totalMinor-invoice.paidMinor;
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    if(busy)return;
+    setBusy(true);setError("");
+    const f=new FormData(e.currentTarget);
+    try{
+      await recordPayment({
+        invoiceId:invoice.id!,
+        amountMinor:parseMoneyToMinor(String(f.get("amount")||"0")),
+        method:String(f.get("method")||"cash") as Payment["method"],
+        reference:String(f.get("ref")||""),
+        note:String(f.get("note")||"")
+      });
+      onSaved();
+    }catch(err){
+      setError(err instanceof Error?err.message:"Could not record payment.");
+    }finally{
+      setBusy(false);
+    }
+  }
   return <ModalFrame onClose={onClose}><ModalHeader eyebrow={invoice.invoiceNo} title={t("collectPayment")} subtitle={invoice.customerName} onClose={onClose}/>
     <div className="payment-summary"><span>{t("billTotal")} <strong>{fmt(invoice.totalMinor)}</strong></span><span>{t("alreadyPaid")} <strong>{fmt(invoice.paidMinor)}</strong></span><span className="due-summary">{t("amountDue")} <strong>{fmt(due)}</strong></span></div>
     <form onSubmit={submit}><Field label={t("amount")}><input name="amount" inputMode="decimal" defaultValue={(due/100).toFixed(2)} required autoFocus/></Field><Field label={t("paymentMethod")}><select name="method"><option value="cash">{t("cash")}</option><option value="upi">UPI</option><option value="bank">{t("bank")}</option><option value="card">{t("card")}</option><option value="other">{t("other")}</option></select></Field><Field label={t("reference")}><input name="ref"/></Field><Field label={t("note")}><input name="note"/></Field>
-      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button">{t("recordPayment")}</button></div>
+      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("recordPayment")}</button></div>
     </form></ModalFrame>;
 }
 
@@ -300,21 +372,121 @@ function InvoiceModal({invoice,settings,locale,fmt,onClose,onPay,onVoided}:{invo
   </ModalFrame>;
 }
 
+function downloadBlob(blob:Blob,filename:string) {
+  const url=URL.createObjectURL(blob);
+  const anchor=document.createElement("a");
+  anchor.href=url;
+  anchor.download=filename;
+  anchor.style.display="none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),60_000);
+}
+
 function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSettings;events:AuditEvent[];t:(k:MessageKey)=>string;onSaved:(s:DeviceSettings)=>void;onRefresh:()=>void}) {
-  const [password,setPassword]=useState("");const [file,setFile]=useState<File>();const [error,setError]=useState("");const [busy,setBusy]=useState(false);
-  async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const next:DeviceSettings={...settings,businessName:String(f.get("name")||"").trim(),phone:String(f.get("phone")||""),address:String(f.get("address")||""),taxId:String(f.get("tax")||""),currencyCode:String(f.get("currency")||"INR"),invoicePrefix:String(f.get("prefix")||"AI").trim().toUpperCase(),updatedAt:Date.now()};if(!next.businessName){setError("Enter the business name.");return;}await saveDeviceSettings(next);await db.auditEvents.add({entityType:"settings",action:"updated",summary:"Updated business settings",actorLabel:"Local user",createdAt:Date.now()});onSaved(next);}
-  async function backup(){setError("");setBusy(true);try{const blob=await createEncryptedBackup(password);const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ainvoice-backup-"+todayISO()+".ainvoice-backup.json";a.click();URL.revokeObjectURL(url);}catch(err){setError(err instanceof Error?err.message:"Backup failed.");}finally{setBusy(false);}}
-  async function restore(){if(!file){setError("Select a backup file.");return;}if(!window.confirm(t("restoreWarning")))return;setError("");setBusy(true);try{await restoreEncryptedBackup(file,password);await db.auditEvents.add({entityType:"backup",action:"restored",summary:"Restored encrypted backup",actorLabel:"Local user",createdAt:Date.now()});onRefresh();}catch(err){setError(err instanceof Error?err.message:"Restore failed.");}finally{setBusy(false);}}
+  const [password,setPassword]=useState("");
+  const [file,setFile]=useState<File>();
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+
+  async function save(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    if(busy)return;
+    const f=new FormData(e.currentTarget);
+    const next:DeviceSettings={
+      ...settings,
+      businessName:String(f.get("name")||"").trim(),
+      phone:String(f.get("phone")||"").trim(),
+      address:String(f.get("address")||"").trim(),
+      taxId:String(f.get("tax")||"").trim(),
+      currencyCode:String(f.get("currency")||"INR"),
+      invoicePrefix:String(f.get("prefix")||"AI").trim().toUpperCase(),
+      updatedAt:Date.now()
+    };
+    setError("");
+    if(!next.businessName||next.businessName.length>160){setError("Enter a business name up to 160 characters.");return;}
+    if(next.phone.length>40||next.address.length>1000||next.taxId.length>80){setError("Business details exceed the supported length.");return;}
+    if(!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(next.invoicePrefix)){setError("Invoice prefix must be 1–10 letters, numbers or hyphens.");return;}
+    if(!["INR","USD","EUR","GBP","AED"].includes(next.currencyCode)){setError("Select a supported currency.");return;}
+
+    setBusy(true);
+    try{
+      if(next.currencyCode!==settings.currencyCode){
+        const [invoiceCount,productCount,customerCount,paymentCount]=await Promise.all([
+          db.invoices.count(),db.products.count(),db.customers.count(),db.payments.count()
+        ]);
+        if(invoiceCount||productCount||customerCount||paymentCount){
+          throw new Error("Currency cannot be changed after business records exist. Create a separate business profile or perform a reviewed data conversion.");
+        }
+      }
+      await db.transaction("rw",db.settings,db.auditEvents,async()=>{
+        await db.settings.put(next);
+        await db.auditEvents.add({
+          entityType:"settings",
+          action:"updated",
+          summary:"Updated business settings",
+          actorLabel:"Local user",
+          createdAt:Date.now()
+        });
+      });
+      onSaved(next);
+    }catch(err){
+      setError(err instanceof Error?err.message:"Could not save settings.");
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  async function backup(){
+    if(busy)return;
+    setError("");setBusy(true);
+    try{
+      const blob=await createEncryptedBackup(password);
+      downloadBlob(blob,"ainvoice-backup-"+todayISO()+".ainvoice-backup.json");
+    }catch(err){
+      setError(err instanceof Error?err.message:"Backup failed.");
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  async function restore(){
+    if(busy)return;
+    if(!file){setError("Select a backup file.");return;}
+    if(!window.confirm(t("restoreWarning")))return;
+    setError("");setBusy(true);
+    try{
+      // Preserve the current business data before an import replaces it.
+      const safetyCopy=await createEncryptedBackup(password);
+      downloadBlob(safetyCopy,"ainvoice-before-restore-"+todayISO()+".ainvoice-backup.json");
+      await restoreEncryptedBackup(file,password);
+      await db.auditEvents.add({
+        entityType:"backup",
+        action:"restored",
+        summary:"Restored encrypted backup",
+        actorLabel:"Local user",
+        createdAt:Date.now()
+      });
+      setFile(undefined);
+      onRefresh();
+    }catch(err){
+      setError(err instanceof Error?err.message:"Restore failed.");
+    }finally{
+      setBusy(false);
+    }
+  }
+
   return <section className="page-section narrow-section"><div className="page-heading compact"><div><div className="eyebrow">PREFERENCES</div><h1>{t("settings")}</h1><p>{t("businessDetails")}</p></div></div><div className="panel settings-panel">
     <form onSubmit={save}><div className="settings-section-title">{t("businessDetails")}</div><Field label={t("businessName")}><input name="name" defaultValue={settings.businessName} required/></Field>
       <div className="form-grid-two"><Field label={t("businessPhone")}><input name="phone" defaultValue={settings.phone}/></Field><Field label={t("taxId")}><input name="tax" defaultValue={settings.taxId}/></Field></div>
       <Field label={t("businessAddress")}><textarea name="address" rows={2} defaultValue={settings.address}/></Field>
       <div className="form-grid-two"><Field label={t("currency")}><select name="currency" defaultValue={settings.currencyCode}><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — Pound Sterling</option><option value="AED">AED — Dirham</option></select></Field><Field label={t("invoicePrefix")}><input name="prefix" defaultValue={settings.invoicePrefix}/></Field></div>
-      <div className="modal-actions"><button type="submit" className="primary-button">{t("saveSettings")}</button></div>
+      <div className="modal-actions"><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveSettings")}</button></div>
     </form>
     <div className="settings-divider"/><div className="settings-section-title">{t("dataPrivacy")}</div><p className="settings-description">{t("secureBackup")}. {t("settingsSecurity")}</p>
     <Field label={t("backupPassword")}><input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field>
-    <div className="backup-actions"><button className="secondary-button" onClick={backup} disabled={busy}><Download size={15}/>{t("backupExport")}</button><label className="secondary-button file-picker"><UploadIcon/><span>{t("chooseBackup")}</span><input type="file" accept=".json,application/json" onChange={e=>setFile(e.target.files?.[0])}/></label><button className="primary-button" onClick={restore} disabled={busy||!file}>{t("restore")}</button></div>
+    <div className="backup-actions"><button className="secondary-button" onClick={backup} disabled={busy}><Download size={15}/>{t("backupExport")}</button><label className={busy?"secondary-button file-picker disabled":"secondary-button file-picker"} aria-disabled={busy}><UploadIcon/><span>{t("chooseBackup")}</span><input type="file" accept=".json,application/json" disabled={busy} onChange={e=>setFile(e.target.files?.[0])}/></label><button className="primary-button" onClick={restore} disabled={busy||!file}>{busy?"Working…":t("restore")}</button></div>
     {file&&<p className="settings-description">{file.name}</p>}<div className="settings-warning"><CircleHelp size={17}/><p>{t("restoreWarning")} {t("settingsSecurity")}</p></div>
     <div className="settings-divider"/><div className="settings-section-title">{t("recentActivity")}</div><p className="settings-description">{t("noCloud")} · {t("localData")}</p>{events.length===0?<p className="settings-description">{t("noActivity")}</p>:events.slice(0,8).map((event)=><div className="report-row" key={event.id}><span>{event.action}</span><strong>{event.summary}</strong><small>{dateLabel(event.createdAt)}</small></div>)}
   </div>{error&&<div className="form-error settings-error">{error}</div>}</section>;

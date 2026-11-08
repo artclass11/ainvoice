@@ -1,0 +1,131 @@
+import "fake-indexeddb/auto";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { db, type DeviceSettings } from "./db";
+import { createInvoice, saveProduct } from "./billing";
+import { createEncryptedBackup, restoreEncryptedBackup } from "./backup";
+
+const PASSWORD = "correct-horse-battery-staple";
+
+const settings: DeviceSettings = {
+  id: "main",
+  businessName: "Backup Store",
+  locale: "en",
+  currencyCode: "INR",
+  countryCode: "IN",
+  address: "Market Road",
+  phone: "",
+  taxId: "",
+  invoicePrefix: "AI",
+  invoiceSequence: 0,
+  createdAt: 1,
+  updatedAt: 1
+};
+
+beforeEach(async () => {
+  await db.delete();
+  await db.open();
+  await db.settings.put({ ...settings });
+});
+
+afterEach(async () => {
+  await db.delete();
+});
+
+async function makeBackupFile(password = PASSWORD): Promise<File> {
+  const backup = await createEncryptedBackup(password);
+  return new File([backup], "store.ainvoice-backup.json", {
+    type: "application/vnd.ainvoice.backup+json"
+  });
+}
+
+async function seedInvoice(): Promise<void> {
+  const productId = await saveProduct({
+    name: "Notebook",
+    sku: "NOTE-001",
+    unit: "pcs",
+    salePriceMinor: 10000,
+    purchasePriceMinor: 7000,
+    taxRateBps: 1800,
+    stockQuantityMilli: 3000,
+    reorderLevelMilli: 500,
+    trackStock: true,
+    active: true
+  });
+  await createInvoice({
+    customerName: "Test customer",
+    lines: [{ productId, description: "Notebook", sku: "NOTE-001", unit: "pcs", quantity: 1, unitPriceMinor: 10000, taxRateBps: 1800 }],
+    paidMinor: 500
+  });
+}
+
+describe("encrypted business backups", () => {
+  it("round-trips invoices, stock, payments and settings", async () => {
+    await seedInvoice();
+    const file = await makeBackupFile();
+
+    await db.settings.update("main", { businessName: "Changed Store" });
+    await createInvoice({
+      customerName: "Second customer",
+      lines: [{ description: "Service", quantity: 1, unitPriceMinor: 1000, taxRateBps: 0 }]
+    });
+
+    await restoreEncryptedBackup(file, PASSWORD);
+
+    expect((await db.settings.get("main"))?.businessName).toBe("Backup Store");
+    expect(await db.invoices.count()).toBe(1);
+    expect(await db.products.count()).toBe(1);
+    expect(await db.payments.count()).toBe(1);
+    expect((await db.invoices.toArray())[0].paidMinor).toBe(500);
+    expect((await db.products.toArray())[0].stockQuantityMilli).toBe(2000);
+  });
+
+  it("does not change existing data when the backup password is incorrect", async () => {
+    await seedInvoice();
+    const file = await makeBackupFile();
+    await db.settings.update("main", { businessName: "Keep This Store" });
+
+    await expect(restoreEncryptedBackup(file, "wrong-password-value")).rejects.toThrow(/could not be decrypted/);
+    expect((await db.settings.get("main"))?.businessName).toBe("Keep This Store");
+    expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("rejects a tampered ciphertext without changing business data", async () => {
+    await seedInvoice();
+    const backup = await createEncryptedBackup(PASSWORD);
+    const envelope = JSON.parse(await backup.text()) as { ciphertext: string };
+    envelope.ciphertext = (envelope.ciphertext[0] === "A" ? "B" : "A") + envelope.ciphertext.slice(1);
+    const tampered = new File([JSON.stringify(envelope)], "tampered.ainvoice-backup.json");
+    await db.settings.update("main", { businessName: "Untouched Store" });
+
+    await expect(restoreEncryptedBackup(tampered, PASSWORD)).rejects.toThrow(/could not be decrypted/);
+    expect((await db.settings.get("main"))?.businessName).toBe("Untouched Store");
+    expect(await db.invoices.count()).toBe(1);
+  });
+
+  it("rejects unsupported or malformed backup envelopes before decrypting", async () => {
+    const malformed = new File([JSON.stringify({
+      format: "AINVOICE-ENCRYPTED-BACKUP",
+      version: 1,
+      kdf: "PBKDF2-SHA256",
+      iterations: 600000,
+      cipher: "AES-256-GCM",
+      salt: "AA==",
+      iv: "AA==",
+      ciphertext: "AA=="
+    })], "malformed.ainvoice-backup.json");
+
+    await expect(restoreEncryptedBackup(malformed, PASSWORD)).rejects.toThrow(/encryption parameters are invalid/);
+    expect((await db.settings.get("main"))?.businessName).toBe("Backup Store");
+    expect(await db.invoices.count()).toBe(0);
+  });
+
+  it("rejects files over the documented restore size limit", async () => {
+    const oversized = {
+      size: 250 * 1024 * 1024 + 1,
+      text: async () => "{}"
+    } as File;
+
+    await expect(restoreEncryptedBackup(oversized, PASSWORD)).rejects.toThrow(/250 MB/);
+    expect((await db.settings.get("main"))?.businessName).toBe("Backup Store");
+  });
+});
