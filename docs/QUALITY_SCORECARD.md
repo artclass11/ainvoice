@@ -22,6 +22,7 @@ This scorecard is an engineering assessment of the repository, not a certificati
 - **Latest CI:** [run 42491034843](https://github.com/artclass11/ainvoice/actions/runs/42491034843) passed type-checking, unit/integration tests, production build, production dependency audit and native Linux/Tauri compilation.
 - **Latest CodeQL:** [run 42491034844](https://github.com/artclass11/ainvoice/actions/runs/42491034844) passed JavaScript/TypeScript analysis.
 - **What these checks do not prove:** no independent cryptographic audit, penetration test, raw browser/WebView profile scan, physical-device migration/restore exercise or signed cross-platform 2.0 release has been completed.
+- **Migration safety-backup gap:** the prototype reconciles the encrypted copy before requesting legacy-database deletion, but it does not yet enforce creation and restore-verification of a separate password-encrypted safety backup before migration. This remains a 2.0 release blocker.
 - **Release decision:** keep PR #9 in draft and keep the public version at 0.1.1. Do not merge or publish 2.0 until the acceptance gates in [RELEASE_2.0.md](./RELEASE_2.0.md) pass.
 
 ## Recent improvements
