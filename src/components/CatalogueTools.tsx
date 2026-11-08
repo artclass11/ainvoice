@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from "react";
 import { ArrowDownToLine, FileSpreadsheet, Upload } from "lucide-react";
-import { db, type Product } from "../lib/db";
+import type { Product } from "../lib/db";
+import { importProductCatalogue } from "../lib/catalogue-import";
 import {
   createProductCsvTemplate,
   exportProductsCsv,
@@ -21,7 +22,6 @@ const copy: Record<Locale, Record<string, string>> = {
     tooLarge: "The selected file exceeds the 5 MB limit.",
     unknown: "Could not read the selected CSV file.",
     imported: "products imported successfully.",
-    duplicateChanged: "The catalogue changed after preview. Reopen the CSV preview to check duplicate SKUs.",
     issues: "Row issues", more: "more row issues",
     note: "Only valid, unique SKU rows will be added. Existing catalogue records will not be edited."
   },
@@ -107,39 +107,7 @@ export function CatalogueTools({
     setBusy(true);
     setError("");
     try {
-      const now = Date.now();
-      await db.transaction("rw", [db.products, db.auditEvents], async () => {
-        const current = await db.products.toArray();
-        const currentSkus = new Set(current.map(product => product.sku.trim().toUpperCase()));
-        const changed = preview.products.some(product => currentSkus.has(product.sku));
-        if (changed) throw new Error(t.duplicateChanged);
-        for (const product of preview.products) {
-          const productId = await db.products.add({
-            ...product,
-            createdAt: now,
-            updatedAt: now
-          });
-          if (product.trackStock && product.stockQuantityMilli > 0) {
-            await db.stockMovements.add({
-              productId,
-              productName: product.name,
-              type: "adjustment",
-              quantityDeltaMilli: product.stockQuantityMilli,
-              referenceType: "manual",
-              note: "CSV catalogue import opening stock",
-              createdAt: now
-            });
-          }
-        }
-        await db.auditEvents.add({
-          entityType: "product",
-          action: "catalogue_csv_import",
-          summary: "Imported " + preview.products.length + " products from CSV",
-          actorLabel: "Local user",
-          createdAt: now
-        });
-      });
-      const count = preview.products.length;
+      const count = await importProductCatalogue(preview.products);
       setPreview(undefined);
       setFilename("");
       onImported(count);
