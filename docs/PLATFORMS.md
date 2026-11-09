@@ -1,5 +1,7 @@
 # AInvoice platform support and downloads
 
+For the Pro branch's pull-request build matrix and the separate physical-device validation required before claiming full platform support, see [Platform verification](./PLATFORM_VERIFICATION.md).
+
 AInvoice uses one React/TypeScript frontend with two delivery paths:
 
 - **PWA:** install from a secure website in a supported browser. Useful for a quick start and the easiest distribution.
