@@ -103,6 +103,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Initialize Android project
         run: pnpm tauri android init --ci
+      - name: Generate Android icons
+        run: pnpm tauri icon public/icon.svg
       - name: Build debug APK (no release keystore required)
         shell: bash
         run: |
@@ -152,6 +154,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Initialize iOS project
         run: pnpm tauri ios init --ci
+      - name: Generate iOS icons
+        run: pnpm tauri icon public/icon.svg
       - name: Build unsigned iOS Simulator app
         run: pnpm tauri ios build --debug --target aarch64-sim --ci
       - name: Verify simulator application was produced
