@@ -27,6 +27,10 @@ Native packaging and signing requirements vary by platform. Windows/macOS/Linux 
 
 See [PLATFORMS.md](./docs/PLATFORMS.md) for platform details and installation/build steps.
 
+## AInvoice Pro preview
+
+The separate [Pro edition workstream](./docs/PRO_EDITION.md) adds professional catalogue workflows without locking features behind a subscription or requiring a cloud account. The current Pro preview branch includes validated product CSV import with a review step, CSV template/export, duplicate-SKU protection, atomic writes, opening-stock movements and audit logging. This work is not merged into the published 0.1.1 installers.
+
 ## Current application features
 
 - Guided local business setup and a 4–6 digit app-entry PIN.

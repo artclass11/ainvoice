@@ -1,0 +1,196 @@
+name: Platform compatibility
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Desktop native build — ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux x64
+            os: ubuntu-22.04
+          - platform: Windows x64
+            os: windows-latest
+          - platform: macOS
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Install Linux WebKit and system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl wget file \
+            libssl-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev patchelf
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate native icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Build native application without installers or signing
+        run: pnpm tauri build --no-bundle
+      - name: Verify native executable was produced
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            test -f src-tauri/target/release/ainvoice.exe
+          else
+            test -f src-tauri/target/release/ainvoice
+          fi
+
+  android:
+    name: Android ARM64 debug APK
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
+      - name: Install pinned Android SDK, NDK and CMake
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
+      - name: Set up Rust Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Initialize Android project
+        run: pnpm tauri android init --ci
+      - name: Generate Android icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Build debug APK (no release keystore required)
+        shell: bash
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          export ANDROID_NDK_HOME="$NDK_HOME"
+          export ANDROID_NDK_ROOT="$NDK_HOME"
+          test -d "$NDK_HOME"
+          pnpm tauri android build --debug --apk --target aarch64 --ci
+      - name: Verify APK archive
+        shell: bash
+        run: |
+          APK_PATH="$(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' -print -quit)"
+          test -n "$APK_PATH"
+          unzip -t "$APK_PATH"
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: AInvoice-Android-ARM64-Debug
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios-simulator:
+    name: iOS Simulator app (unsigned)
+    runs-on: macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Select Xcode and show toolchain
+        run: |
+          xcode-select -p
+          xcodebuild -version
+      - name: Set up Rust iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Initialize iOS project
+        run: pnpm tauri ios init --ci
+      - name: Generate iOS icons
+        run: pnpm tauri icon public/icon.svg
+      - name: Build unsigned iOS Simulator app
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci
+      - name: Verify simulator application was produced
+        shell: bash
+        run: |
+          APP_PATH="$(find src-tauri/gen/apple -type d -name '*.app' -print -quit)"
+          test -n "$APP_PATH" || (echo "No iOS Simulator .app was generated." && exit 1)
+          test -d "$APP_PATH"
+          echo "Built iOS Simulator app: $APP_PATH"
+      - name: Upload iOS Simulator app
+        uses: actions/upload-artifact@v7
+        with:
+          name: AInvoice-iOS-Simulator-Debug
+          path: src-tauri/gen/apple/**/*.app
+          if-no-files-found: error
+          retention-days: 7
+
+  web-pwa:
+    name: Web and installable PWA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.9
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build PWA for the production root path
+        run: pnpm build
+      - name: Verify installable PWA output
+        run: node scripts/verify-web-build.mjs
