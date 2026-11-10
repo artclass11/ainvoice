@@ -61,6 +61,10 @@ Requires Node.js 22+, pnpm 9+ and Rust stable for native builds.
     pnpm typecheck
     pnpm build
 
+Native builds need the app icons, which are generated rather than committed (CI does the same). Run this once before the first native `dev` or `build`:
+
+    pnpm tauri icon public/icon.svg
+
 Run as a native desktop app:
 
     pnpm tauri dev
