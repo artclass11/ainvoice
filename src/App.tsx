@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowDownLeft, ArrowUpRight, BarChart3, Check, ChevronDown, CircleHelp, ClipboardList, Download, Eye, FilePlus2, FileText, Globe2, LayoutDashboard, LockKeyhole, LogOut, Package, Plus, Printer, Receipt, Search, Settings2, ShieldCheck, ShoppingCart, Truck, Users, Wallet, X } from "lucide-react";
 import { db, getDeviceSettings, saveDeviceSettings, type AuditEvent, type Customer, type DeviceSettings, type Invoice, type Payment, type Product, type Purchase, type Supplier, type SupplierPayment, type StockMovement } from "./lib/db";
 import { calculateInvoiceTotals, createInvoice, createPurchase, parseMoneyToMinor, recordPayment, recordSupplierPayment, saveCustomer, saveProduct, saveSupplier, voidInvoice, voidPurchase, type DraftLineInput } from "./lib/billing";
 import { createPinCredential, pinLockoutDurationMs, verifyPin } from "./lib/security";
 import { createEncryptedBackup, restoreEncryptedBackup } from "./lib/backup";
+import { loadWorkspace } from "./lib/workspace";
 import { translate, type Locale, type MessageKey } from "./i18n";
+import { getStorageStatus, isNativeApp, requestPersistentStorage, type StorageStatus } from "./lib/storage";
 
 type Page = "dashboard" | "invoices" | "products" | "customers" | "purchases" | "suppliers" | "cashBook" | "reports" | "settings";
 type Modal = "bill" | "product" | "customer" | "payment" | "invoice" | "purchase" | "supplier" | "supplierPayment" | "purchaseDetails" | null;
@@ -22,6 +24,7 @@ const nav: { id: Page; key: MessageKey; icon: typeof LayoutDashboard }[] = [
 function todayISO() { const d = new Date(); return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
 function money(n: number, code = "INR", locale = "en-IN") { try { return new Intl.NumberFormat(locale,{style:"currency",currency:code,maximumFractionDigits:2}).format(n/100); } catch { return code + " " + (n/100).toFixed(2); } }
 function dateLabel(v: string | number, locale = "en-IN") { const d = typeof v === "number" ? new Date(v) : new Date(v.slice(0,10)+"T12:00:00"); return new Intl.DateTimeFormat(locale,{day:"2-digit",month:"short",year:"numeric"}).format(d); }
+const LocaleContext = createContext<Locale>("en");
 function localLocale(l: Locale) { return l === "hi" ? "hi-IN" : l === "mr" ? "mr-IN" : "en-IN"; }
 
 export default function App() {
@@ -54,34 +57,30 @@ export default function App() {
   const fmt = (v: number) => money(v,code,tag);
 
   async function load() {
-    const values = await Promise.all([
-      db.invoices.orderBy("createdAt").reverse().toArray(),
-      db.products.orderBy("name").toArray(),
-      db.customers.orderBy("name").toArray(),
-      db.payments.orderBy("paidAt").reverse().toArray(),
-      db.suppliers.orderBy("name").toArray(),
-      db.purchases.orderBy("createdAt").reverse().toArray(),
-      db.supplierPayments.orderBy("paidAt").reverse().toArray(),
-      db.stockMovements.orderBy("createdAt").reverse().toArray(),
-      db.auditEvents.orderBy("createdAt").reverse().limit(20).toArray(),
-      db.settings.get("main")
-    ]);
-    setInvoices(values[0]); setProducts(values[1]); setCustomers(values[2]); setPayments(values[3]);
-    setSuppliers(values[4]); setPurchases(values[5]); setSupplierPayments(values[6]);
-    setStockMovements(values[7]); setEvents(values[8]);
-    if (values[9]) setSettings(values[9]);
+    const data = await loadWorkspace();
+    setInvoices(data.invoices); setProducts(data.products); setCustomers(data.customers); setPayments(data.payments);
+    setSuppliers(data.suppliers); setPurchases(data.purchases); setSupplierPayments(data.supplierPayments);
+    setStockMovements(data.stockMovements); setEvents(data.events);
+    if (data.settings) setSettings(data.settings);
   }
   useEffect(() => {
     let alive = true;
     getDeviceSettings().then(v => { if (!alive) return; setSettings(v); if (v?.locale) setLocale(v.locale); })
-      .catch(() => { if (alive) setToast("Could not read local business data."); })
+      .catch(() => { if (alive) setToast(t("readDataFailed")); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
+  // Keep the document language in step with the chosen interface language so
+  // screen readers pick the right voice and browsers choose suitable fonts.
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
+  // Ask the browser not to evict local business data under storage pressure.
+  useEffect(() => {
+    if (unlocked && !isNativeApp()) void requestPersistentStorage();
+  }, [unlocked]);
   useEffect(() => {
     if (!unlocked) return;
     let alive = true;
-    load().catch(() => { if (alive) setToast("Could not load local business data."); });
+    load().catch(() => { if (alive) setToast(t("loadDataFailed")); });
     return () => { alive = false; };
   }, [unlocked,refresh]);
 
@@ -101,7 +100,7 @@ export default function App() {
       setPickedSupplier(undefined);
       setPickedPurchase(undefined);
       setUnlocked(false);
-      setToast("Session locked automatically. Enter your PIN to continue.");
+      setToast(t("sessionLocked"));
     };
     const resetTimer = () => {
       if (timer !== undefined) window.clearTimeout(timer);
@@ -120,7 +119,7 @@ export default function App() {
       activityEvents.forEach((name) => window.removeEventListener(name, resetTimer));
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [unlocked]);
+  }, [unlocked, locale]);
 
   const issued = invoices.filter(x => x.status === "issued");
   const todayBills = issued.filter(x => x.dateISO === todayISO());
@@ -138,12 +137,12 @@ export default function App() {
     const name=String(f.get("businessName")||"").trim(), pin=String(f.get("pin")||"");
     const confirm=String(f.get("confirmPin")||"");
     const lang=String(f.get("locale")||"en") as Locale;
-    if(!name){setToast("Enter the business name.");return;}
-    if(pin!==confirm){setToast("PINs do not match.");return;}
+    if(!name){setToast(translate(lang,"enterBusinessName"));return;}
+    if(pin!==confirm){setToast(translate(lang,"pinsDoNotMatch"));return;}
     try{
       const c=await createPinCredential(pin);
       const next:DeviceSettings={id:"main",businessName:name,locale:lang,currencyCode:"INR",countryCode:"IN",address:"",phone:"",taxId:"",invoicePrefix:"AI",invoiceSequence:0,pinSalt:c.salt,pinHash:c.hash,pinFailedAttempts:0,pinLockedUntil:0,createdAt:Date.now(),updatedAt:Date.now()};
-      await saveDeviceSettings(next); setSettings(next);setLocale(lang);setUnlocked(true);setToast(t("noConnectionNeeded"));
+      await saveDeviceSettings(next); setSettings(next);setLocale(lang);setUnlocked(true);setToast(translate(lang,"noConnectionNeeded"));
     }catch(err){setToast(err instanceof Error?err.message:"Could not save settings.");}
   }
   async function unlock(e:FormEvent<HTMLFormElement>) {
@@ -153,7 +152,7 @@ export default function App() {
     const lockedUntil=Number.isSafeInteger(settings.pinLockedUntil)?(settings.pinLockedUntil??0):0;
     if(lockedUntil>now){
       const seconds=Math.ceil((lockedUntil-now)/1000);
-      setToast("Too many incorrect PIN attempts. Try again in "+seconds+" seconds.");
+      setToast(t("pinTryAgain").replace("{n}",String(seconds)));
       return;
     }
     const pin=String(new FormData(e.currentTarget).get("pin")||"");
@@ -175,10 +174,10 @@ export default function App() {
       await saveDeviceSettings(updated);
       setSettings(updated);
       setToast(delay
-        ?"Too many incorrect PIN attempts. Access is paused for "+Math.ceil(delay/1000)+" seconds."
-        :"Incorrect PIN. Attempt "+attempts+" of 5 before a short pause.");
+        ?t("pinPaused").replace("{n}",String(Math.ceil(delay/1000)))
+        :t("pinIncorrect").replace("{n}",String(attempts)));
     }catch(err){
-      setToast(err instanceof Error?err.message:"PIN check failed.");
+      setToast(err instanceof Error?err.message:t("pinCheckFailed"));
     }
   }
   async function changeLocale(next:Locale) {
@@ -197,7 +196,7 @@ export default function App() {
       await voidPurchase(purchase.id!,reason);
       done(t("purchaseVoided"));
     } catch(err) {
-      setToast(err instanceof Error?err.message:"Could not void purchase.");
+      setToast(err instanceof Error?err.message:t("purchaseVoidFailed"));
     }
   }
 
@@ -221,7 +220,7 @@ export default function App() {
   const pageTitle=t(nav.find(x=>x.id===page)?.key||"dashboard");
   const hour=new Date().getHours(), greeting=hour<12?t("goodMorning"):hour<17?t("goodAfternoon"):t("goodEvening");
 
-  return <div className="app-shell">
+  return <LocaleContext.Provider value={locale}><div className="app-shell">
     <aside className="sidebar">
       <div className="brand-lockup sidebar-brand"><div className="brand-mark">A</div><div><strong>AInvoice</strong><small>BUSINESS, MADE SIMPLE</small></div></div>
       <div className="workspace-switcher"><div className="workspace-avatar">{settings.businessName.slice(0,1).toUpperCase()}</div><div className="workspace-copy"><strong>{settings.businessName}</strong><small>On-device workspace</small></div><ChevronDown size={15}/></div>
@@ -279,8 +278,8 @@ export default function App() {
     {modal==="supplierPayment"&&pickedPurchase&&<SupplierPaymentModal purchase={pickedPurchase} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onSaved={()=>done(t("supplierPaymentSaved"))}/>}
     {modal==="payment"&&pickedInvoice&&<PaymentModal invoice={pickedInvoice} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onSaved={()=>done(t("paymentSaved"))}/>}
     {modal==="invoice"&&pickedInvoice&&<InvoiceModal invoice={pickedInvoice} settings={settings} locale={locale} fmt={fmt} onClose={()=>setModal(null)} onPay={()=>setModal("payment")} onVoided={()=>done(t("invoiceVoided"))}/>}
-    {toast&&<div className="toast" role="status"><Check size={15}/>{toast}<button onClick={()=>setToast("")} aria-label="Dismiss"><X size={14}/></button></div>}
-  </div>;
+    {toast&&<div className="toast" role="status"><Check size={15}/>{toast}<button onClick={()=>setToast("")} aria-label={t("close")}><X size={14}/></button></div>}
+  </div></LocaleContext.Provider>;
 }
 
 function WifiIcon(){return <Globe2 size={14}/>;}
@@ -299,7 +298,7 @@ function Dashboard({t,greeting,businessName,invoices,products,todaySales,todayCo
 }
 function InvoiceTable({rows,t,fmt,onView,onPay}:{rows:Invoice[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onView:(x:Invoice)=>void;onPay:(x:Invoice)=>void}) {
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("invoice")}</th><th>{t("customer")}</th><th>{t("date")}</th><th>{t("amount")}</th><th>{t("status")}</th><th>{t("actions")}</th></tr></thead><tbody>
-    {rows.length===0?<tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><ClipboardList size={22}/></div><strong>{t("emptyBills")}</strong><span>{t("createFirst")}</span></div></td></tr>:rows.map(x=><tr key={x.id} className={x.status==="void"?"void-row":""}><td><button className="table-link" onClick={()=>onView(x)}>{x.invoiceNo}</button></td><td>{x.customerName}</td><td>{dateLabel(x.dateISO)}</td><td className="amount-cell">{fmt(x.totalMinor)}</td><td><span className={"status-pill "+(x.status==="void"?"void":x.paymentStatus)}><span/>{t(x.status==="void"?"void":x.paymentStatus)}</span></td><td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewBill")}><Receipt size={14}/></button>{x.status==="issued"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("collectPayment")}><Wallet size={14}/></button>}</div></td></tr>)}</tbody></table></div>;
+    {rows.length===0?<tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><ClipboardList size={22}/></div><strong>{t("emptyBills")}</strong><span>{t("createFirst")}</span></div></td></tr>:rows.map(x=><tr key={x.id} className={x.status==="void"?"void-row":""}><td><button className="table-link" onClick={()=>onView(x)}>{x.invoiceNo}</button></td><td>{x.customerName}</td><td>{dateLabel(x.dateISO)}</td><td className="amount-cell">{fmt(x.totalMinor)}</td><td><span className={"status-pill "+(x.status==="void"?"void":x.paymentStatus)}><span/>{t(x.status==="void"?"void":x.paymentStatus)}</span></td><td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewBill")} aria-label={t("viewBill")}><Receipt size={14}/></button>{x.status==="issued"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("collectPayment")} aria-label={t("collectPayment")}><Wallet size={14}/></button>}</div></td></tr>)}</tbody></table></div>;
 }
 function ProductTable({rows,t,fmt,onEdit}:{rows:Product[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Product)=>void}) {
   return <div className="table-wrap"><table className="invoice-table"><thead><tr><th>{t("itemName")}</th><th>{t("sku")}</th><th>{t("salePrice")}</th><th>{t("stock")}</th><th>{t("status")}</th><th>{t("actions")}</th></tr></thead><tbody>{rows.length===0?<tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><Package size={22}/></div><strong>{t("noItems")}</strong></div></td></tr>:rows.map(p=><tr key={p.id}><td><strong>{p.name}</strong><small className="cell-sub">{p.unit}</small></td><td>{p.sku}</td><td className="amount-cell">{fmt(p.salePriceMinor)}</td><td>{p.trackStock?(p.stockQuantityMilli/1000).toFixed(3):t("service")}</td><td><span className={"status-pill "+(p.trackStock&&p.stockQuantityMilli<=p.reorderLevelMilli?"due":"paid")}><span/>{p.trackStock&&p.stockQuantityMilli<=p.reorderLevelMilli?t("lowStock"):t("active")}</span></td><td><button className="row-action" onClick={()=>onEdit(p)}><Settings2 size={14}/></button></td></tr>)}</tbody></table></div>;
@@ -313,7 +312,7 @@ function PurchaseTable({rows,t,fmt,onView,onPay,onVoid}:{rows:Purchase[];t:(k:Me
     {rows.length===0?<tr><td colSpan={7}><div className="empty-state"><div className="empty-icon"><ShoppingCart size={22}/></div><strong>{t("noPurchases")}</strong><span>{t("newPurchase")}</span></div></td></tr>:rows.map(x=><tr key={x.id} className={x.status==="void"?"void-row":""}>
       <td><strong>{x.purchaseNo}</strong></td><td>{x.supplierName}</td><td>{dateLabel(x.dateISO)}</td><td className="amount-cell">{fmt(x.totalMinor)}</td><td>{fmt(x.paidMinor)}</td>
       <td><span className={"status-pill "+(x.status==="void"?"void":x.paymentStatus)}><span/>{t(x.status==="void"?"void":x.paymentStatus)}</span></td>
-      <td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewPurchase")} aria-label={t("viewPurchase")}><Eye size={14}/></button>{x.status==="received"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("makeSupplierPayment")}><Wallet size={14}/></button>}{x.status==="received"&&x.paidMinor===0&&<button className="row-action" onClick={()=>onVoid(x)} title={t("voidPurchase")}><X size={14}/></button>}</div></td>
+      <td><div className="row-actions"><button className="row-action" onClick={()=>onView(x)} title={t("viewPurchase")} aria-label={t("viewPurchase")}><Eye size={14}/></button>{x.status==="received"&&x.totalMinor>x.paidMinor&&<button className="row-action" onClick={()=>onPay(x)} title={t("makeSupplierPayment")} aria-label={t("makeSupplierPayment")}><Wallet size={14}/></button>}{x.status==="received"&&x.paidMinor===0&&<button className="row-action" onClick={()=>onVoid(x)} title={t("voidPurchase")} aria-label={t("voidPurchase")}><X size={14}/></button>}</div></td>
     </tr>)}</tbody></table></div>;
 }
 function SupplierTable({rows,purchases,t,fmt,onEdit}:{rows:Supplier[];purchases:Purchase[];t:(k:MessageKey)=>string;fmt:(v:number)=>string;onEdit:(x:Supplier)=>void}) {
@@ -342,8 +341,43 @@ function Reports({invoices,payments,t,fmt}:{invoices:Invoice[];payments:Payment[
       <div className="panel report-panel"><div className="panel-heading"><div><h2>{t("collections")}</h2></div></div>{Object.entries(methods).map(([method,n])=><div className="report-row" key={method}><span>{t(method as MessageKey)}</span><strong>{fmt(n)}</strong></div>)}</div></section>
   </section>;
 }
-function ModalFrame({children,onClose,wide=false}:{children:ReactNode;onClose:()=>void;wide?:boolean}) {return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className={"bill-modal "+(wide?"wide-modal":"")} role="dialog" aria-modal="true">{children}</section></div>;}
-function ModalHeader({title,subtitle,eyebrow,onClose}:{title:string;subtitle?:string;eyebrow:string;onClose:()=>void}) {return <div className="modal-heading"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose}><X size={19}/></button></div>;}
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+/**
+ * Modal dialog shell. Keyboard users get: Escape to close, focus moved into the
+ * dialog on open, Tab/Shift+Tab kept inside it, focus returned to the control
+ * that opened it, and an accessible name taken from the dialog's heading.
+ */
+function ModalFrame({children,onClose,wide=false}:{children:ReactNode;onClose:()=>void;wide?:boolean}) {
+  const dialogRef=useRef<HTMLElement>(null);
+  const closeRef=useRef(onClose);
+  closeRef.current=onClose;
+  const titleId=useId();
+  useEffect(()=>{
+    const dialog=dialogRef.current;
+    if(!dialog)return;
+    const opener=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    const heading=dialog.querySelector("h1,h2,h3");
+    if(heading){heading.id=heading.id||titleId;dialog.setAttribute("aria-labelledby",heading.id);}
+    const focusable=()=>Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(el=>el.getClientRects().length>0);
+    (focusable().find(el=>!el.classList.contains("icon-button"))??dialog).focus();
+    const onKeyDown=(e:KeyboardEvent)=>{
+      if(e.key==="Escape"){e.preventDefault();closeRef.current();return;}
+      if(e.key!=="Tab")return;
+      const items=focusable();
+      if(items.length===0){e.preventDefault();dialog.focus();return;}
+      const first=items[0],last=items[items.length-1],active=document.activeElement;
+      if(e.shiftKey&&(active===first||active===dialog)){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&active===last){e.preventDefault();first.focus();}
+    };
+    document.addEventListener("keydown",onKeyDown);
+    return()=>{document.removeEventListener("keydown",onKeyDown);if(opener?.isConnected)opener.focus();};
+  },[titleId]);
+  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section ref={dialogRef} tabIndex={-1} className={"bill-modal "+(wide?"wide-modal":"")} role="dialog" aria-modal="true">{children}</section></div>;
+}
+function ModalHeader({title,subtitle,eyebrow,onClose}:{title:string;subtitle?:string;eyebrow:string;onClose:()=>void}) {
+  const closeLabel=translate(useContext(LocaleContext),"close");
+  return <div className="modal-heading"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button type="button" className="icon-button" onClick={onClose} aria-label={closeLabel} title={closeLabel}><X size={19}/></button></div>;
+}
 function Field({label,children}:{label:string;children:ReactNode}) {return <div className="form-field"><label>{label}</label>{children}</div>;}
 
 function BillModal({locale,products,customers,fmt,onClose,onSaved}:{locale:Locale;products:Product[];customers:Customer[];fmt:(v:number)=>string;onClose:()=>void;onSaved:()=>void}) {
@@ -356,11 +390,11 @@ function BillModal({locale,products,customers,fmt,onClose,onSaved}:{locale:Local
   const draft=useMemo(()=>{try{return lines.map((l):DraftLineInput=>({productId:l.productId,sku:l.sku,description:l.description,unit:l.unit,quantity:Number(l.qty),unitPriceMinor:parseMoneyToMinor(l.price),discountMinor:parseMoneyToMinor(l.discount||"0"),taxRateBps:Math.round(Number(l.tax)*100)}));}catch{return null;}},[lines]);
   const totals=useMemo(()=>{if(!draft)return null;try{return calculateInvoiceTotals(draft);}catch{return null;}},[draft]);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");try{if(!draft)throw new Error("Complete every item with a valid price and quantity.");const c=customers.find(x=>String(x.id)===customerId);const amount=paid.trim()?parseMoneyToMinor(paid):0;await createInvoice({customerId:c?.id,customerName:c?.name||customerName.trim()||t("walkIn"),lines:draft,paidMinor:amount,paymentMethod:method,notes});onSaved();}catch(err){setError(err instanceof Error?err.message:"Could not save bill.");}finally{setBusy(false);}}
-  return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow="NEW SALE" title={t("newBill")} subtitle={t("issueBill")} onClose={onClose}/><form onSubmit={submit}>
+  return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow={t("eyebrowNewSale")} title={t("newBill")} subtitle={t("issueBill")} onClose={onClose}/><form onSubmit={submit}>
     <div className="form-grid-two"><Field label={t("customer")}><select value={customerId} onChange={e=>{setCustomerId(e.target.value);setCustomerName("");}}><option value="">{t("walkIn")}</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label={t("customerName")}><input value={customerName} onChange={e=>{setCustomerName(e.target.value);setCustomerId("");}} placeholder={t("walkIn")} maxLength={160}/></Field></div>
     <div className="form-divider"/><div className="form-section-title"><strong>{t("item")}</strong><span>{lines.length} {t("productsCount")}</span></div>
     {lines.map((l,i)=><div className="bill-line" key={l.id}><div className="bill-line-heading"><span>ITEM {String(i+1).padStart(2,"0")}</span>{lines.length>1&&<button className="remove-line" type="button" onClick={()=>setLines(current=>current.filter((_,n)=>n!==i))}><X size={13}/> {t("remove")}</button>}</div>
-      {products.length>0&&<Field label={t("products")}><select value={l.productId||""} onChange={e=>pickProduct(i,e.target.value)}><option value="">Manual item / service</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {fmt(p.salePriceMinor)}</option>)}</select></Field>}
+      {products.length>0&&<Field label={t("products")}><select value={l.productId||""} onChange={e=>pickProduct(i,e.target.value)}><option value="">{t("manualItem")}</option>{products.map(p=><option key={p.id} value={p.id}>{p.name} — {fmt(p.salePriceMinor)}</option>)}</select></Field>}
       <Field label={t("item")}><input value={l.description} onChange={e=>change(i,"description",e.target.value)} placeholder={t("itemName")} maxLength={200} required/></Field>
       <div className="form-grid-four"><Field label={t("quantity")}><input type="number" min="0.001" step="0.001" value={l.qty} onChange={e=>change(i,"qty",e.target.value)} required/></Field><Field label={t("unitPrice")}><input inputMode="decimal" value={l.price} onChange={e=>change(i,"price",e.target.value)} placeholder="0.00" required/></Field><Field label={t("discount")}><input inputMode="decimal" value={l.discount} onChange={e=>change(i,"discount",e.target.value)}/></Field><Field label={t("tax")}><select value={l.tax} onChange={e=>change(i,"tax",e.target.value)}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></Field></div>
     </div>)}
@@ -368,7 +402,7 @@ function BillModal({locale,products,customers,fmt,onClose,onSaved}:{locale:Local
     <div className="form-grid-two"><Field label={t("paymentReceived")}><input inputMode="decimal" value={paid} onChange={e=>setPaid(e.target.value)} placeholder="0.00"/></Field><Field label={t("paymentMethod")}><select value={method} onChange={e=>setMethod(e.target.value as Payment["method"])}><option value="cash">{t("cash")}</option><option value="upi">UPI</option><option value="bank">{t("bank")}</option><option value="card">{t("card")}</option><option value="other">{t("other")}</option></select></Field></div>
     <Field label={t("notes")}><textarea rows={2} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></Field>
     <div className="totals-box"><div><span>{t("subtotal")}</span><strong>{fmt(totals?.subtotalMinor||0)}</strong></div><div><span>{t("discount")}</span><strong>{fmt(totals?.discountMinor||0)}</strong></div><div><span>{t("taxAmount")}</span><strong>{fmt(totals?.taxMinor||0)}</strong></div><div className="total-line"><span>{t("total")}</span><strong>{fmt(totals?.totalMinor||0)}</strong></div></div>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("issueBill")} <ArrowUpRight size={16}/></button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("issueBill")} <ArrowUpRight size={16}/></button></div>
   </form></ModalFrame>;
 }
 
@@ -401,14 +435,14 @@ function ProductModal({locale,product,onClose,onSaved}:{locale:Locale;product?:P
       setBusy(false);
     }
   }
-  return <ModalFrame onClose={onClose}><ModalHeader eyebrow="CATALOGUE" title={product?t("edit"):t("addItem")} onClose={onClose}/><form onSubmit={submit}>
+  return <ModalFrame onClose={onClose}><ModalHeader eyebrow={t("eyebrowCatalogue")} title={product?t("edit"):t("addItem")} onClose={onClose}/><form onSubmit={submit}>
     <Field label={t("itemName")}><input name="name" defaultValue={product?.name||""} maxLength={160} required autoFocus/></Field>
     <div className="form-grid-two"><Field label={t("sku")}><input name="sku" defaultValue={product?.sku||""} maxLength={64} required/></Field><Field label={t("unit")}><select name="unit" defaultValue={product?.unit||"pcs"}><option value="pcs">{t("unitPcs")}</option><option value="kg">{t("unitKg")}</option><option value="litre">{t("unitLitre")}</option><option value="hour">{t("unitHour")}</option><option value="box">{t("unitBox")}</option></select></Field></div>
     <div className="form-grid-two"><Field label={t("salePrice")}><input name="sale" inputMode="decimal" defaultValue={product?(product.salePriceMinor/100).toFixed(2):""} required/></Field><Field label={t("purchasePrice")}><input name="purchase" inputMode="decimal" defaultValue={product?(product.purchasePriceMinor/100).toFixed(2):"0.00"} required/></Field></div>
     <div className="form-grid-two"><Field label={t("tax")}><select name="tax" defaultValue={String((product?.taxRateBps||0)/100)}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></Field><Field label={t("openingStock")}><input name="stock" type="number" min="0" step="0.001" defaultValue={(product?.stockQuantityMilli||0)/1000}/></Field></div>
     <Field label={t("reorderLevel")}><input name="reorder" type="number" min="0" step="0.001" defaultValue={(product?.reorderLevelMilli||0)/1000}/></Field>
     <label className="check-row"><input name="track" type="checkbox" defaultChecked={product?.trackStock??true}/><span>{t("trackStock")}</span></label><label className="check-row"><input name="active" type="checkbox" defaultChecked={product?.active??true}/><span>{t("active")}</span></label>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveItem")}</button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("saveItem")}</button></div>
   </form></ModalFrame>;
 }
 
@@ -439,14 +473,14 @@ function CustomerModal({locale,customer,onClose,onSaved}:{locale:Locale;customer
       setBusy(false);
     }
   }
-  return <ModalFrame onClose={onClose}><ModalHeader eyebrow="RELATIONSHIPS" title={customer?t("edit"):t("addCustomer")} onClose={onClose}/><form onSubmit={submit}>
+  return <ModalFrame onClose={onClose}><ModalHeader eyebrow={t("eyebrowRelationships")} title={customer?t("edit"):t("addCustomer")} onClose={onClose}/><form onSubmit={submit}>
     <Field label={t("customerName")}><input name="name" defaultValue={customer?.name||""} required autoFocus/></Field>
     <div className="form-grid-two"><Field label={t("phone")}><input name="phone" defaultValue={customer?.phone||""}/></Field><Field label={t("email")}><input type="email" name="email" defaultValue={customer?.email||""}/></Field></div>
     <Field label={t("address")}><textarea name="address" rows={2} defaultValue={customer?.address||""}/></Field>
     <div className="form-grid-two"><Field label={t("taxId")}><input name="tax" defaultValue={customer?.taxId||""}/></Field><Field label={t("creditLimit")}><input name="limit" inputMode="decimal" defaultValue={((customer?.creditLimitMinor||0)/100).toFixed(2)}/></Field></div>
     <Field label={t("balance")}><input name="balance" inputMode="decimal" defaultValue={((customer?.openingBalanceMinor||0)/100).toFixed(2)}/></Field>
     <label className="check-row"><input name="active" type="checkbox" defaultChecked={customer?.active??true}/><span>{t("active")}</span></label>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveCustomer")}</button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("saveCustomer")}</button></div>
   </form></ModalFrame>;
 }
 
@@ -471,13 +505,13 @@ function SupplierModal({locale,supplier,onClose,onSaved}:{locale:Locale;supplier
     }catch(err){setError(err instanceof Error?err.message:"Could not save supplier.");}
     finally{setBusy(false);}
   }
-  return <ModalFrame onClose={onClose}><ModalHeader eyebrow="SUPPLIER" title={supplier?t("edit"):t("addSupplier")} onClose={onClose}/><form onSubmit={submit}>
+  return <ModalFrame onClose={onClose}><ModalHeader eyebrow={t("eyebrowSupplier")} title={supplier?t("edit"):t("addSupplier")} onClose={onClose}/><form onSubmit={submit}>
     <Field label={t("supplierName")}><input name="name" defaultValue={supplier?.name||""} maxLength={160} required autoFocus/></Field>
     <div className="form-grid-two"><Field label={t("phone")}><input name="phone" defaultValue={supplier?.phone||""} maxLength={40}/></Field><Field label={t("email")}><input name="email" type="email" defaultValue={supplier?.email||""} maxLength={254}/></Field></div>
     <Field label={t("address")}><textarea name="address" rows={2} defaultValue={supplier?.address||""} maxLength={1000}/></Field>
     <Field label={t("taxId")}><input name="tax" defaultValue={supplier?.taxId||""} maxLength={80}/></Field>
     <label className="check-row"><input name="active" type="checkbox" defaultChecked={supplier?.active??true}/><span>{t("active")}</span></label>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveSupplier")}</button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("saveSupplier")}</button></div>
   </form></ModalFrame>;
 }
 
@@ -544,7 +578,7 @@ function PurchaseModal({locale,products,suppliers,fmt,onClose,onSaved}:{locale:L
     }catch(err){setError(err instanceof Error?err.message:"Could not record purchase.");}
     finally{setBusy(false);}
   }
-  return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow="STOCK RECEIPT" title={t("newPurchase")} subtitle={t("purchaseHelp")} onClose={onClose}/><form onSubmit={submit}>
+  return <ModalFrame onClose={onClose} wide><ModalHeader eyebrow={t("eyebrowStockReceipt")} title={t("newPurchase")} subtitle={t("purchaseHelp")} onClose={onClose}/><form onSubmit={submit}>
     <div className="form-grid-two"><Field label={t("supplier")}><select value={supplierId} onChange={e=>{setSupplierId(e.target.value);const s=suppliers.find(x=>String(x.id)===e.target.value);if(s)setSupplierName(s.name);}}><option value="">{t("manualSupplier")}</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field><Field label={t("supplierName")}><input value={supplierName} onChange={e=>{setSupplierName(e.target.value);setSupplierId("");}} maxLength={160} placeholder={t("supplierName")} required/></Field></div>
     <div className="form-divider"/><div className="form-section-title"><strong>{t("purchaseItems")}</strong><span>{lines.length}</span></div>
     {lines.map((l,i)=><div className="bill-line" key={l.id}><div className="bill-line-heading"><span>ITEM {String(i+1).padStart(2,"0")}</span>{lines.length>1&&<button className="remove-line" type="button" onClick={()=>setLines(current=>current.filter((_,n)=>n!==i))}><X size={13}/> {t("remove")}</button>}</div>
@@ -557,7 +591,7 @@ function PurchaseModal({locale,products,suppliers,fmt,onClose,onSaved}:{locale:L
     <Field label={t("reference")}><input value={reference} onChange={e=>setReference(e.target.value)} maxLength={160}/></Field>
     <Field label={t("notes")}><textarea rows={2} value={notes} onChange={e=>setNotes(e.target.value)} maxLength={2000}/></Field>
     <div className="totals-box"><div><span>{t("subtotal")}</span><strong>{fmt(totals?.subtotalMinor||0)}</strong></div><div><span>{t("discount")}</span><strong>{fmt(totals?.discountMinor||0)}</strong></div><div><span>{t("taxAmount")}</span><strong>{fmt(totals?.taxMinor||0)}</strong></div><div className="total-line"><span>{t("purchaseTotal")}</span><strong>{fmt(totals?.totalMinor||0)}</strong></div></div>
-    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("savePurchase")} <ArrowUpRight size={16}/></button></div>
+    {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("savePurchase")} <ArrowUpRight size={16}/></button></div>
   </form></ModalFrame>;
 }
 
@@ -584,7 +618,7 @@ function SupplierPaymentModal({purchase,locale,fmt,onClose,onSaved}:{purchase:Pu
   return <ModalFrame onClose={onClose}><ModalHeader eyebrow={purchase.purchaseNo} title={t("makeSupplierPayment")} subtitle={purchase.supplierName} onClose={onClose}/>
     <div className="payment-summary"><span>{t("purchaseTotal")} <strong>{fmt(purchase.totalMinor)}</strong></span><span>{t("alreadyPaid")} <strong>{fmt(purchase.paidMinor)}</strong></span><span className="due-summary">{t("amountDue")} <strong>{fmt(due)}</strong></span></div>
     <form onSubmit={submit}><Field label={t("amount")}><input name="amount" inputMode="decimal" defaultValue={(due/100).toFixed(2)} required autoFocus/></Field><Field label={t("paymentMethod")}><select name="method"><option value="cash">{t("cash")}</option><option value="upi">UPI</option><option value="bank">{t("bank")}</option><option value="card">{t("card")}</option><option value="other">{t("other")}</option></select></Field><Field label={t("reference")}><input name="reference" maxLength={160}/></Field><Field label={t("note")}><input name="note" maxLength={1000}/></Field>
-      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("recordPayment")}</button></div>
+      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("recordPayment")}</button></div>
     </form></ModalFrame>;
 }
 
@@ -616,7 +650,7 @@ function PaymentModal({invoice,locale,fmt,onClose,onSaved}:{invoice:Invoice;loca
   return <ModalFrame onClose={onClose}><ModalHeader eyebrow={invoice.invoiceNo} title={t("collectPayment")} subtitle={invoice.customerName} onClose={onClose}/>
     <div className="payment-summary"><span>{t("billTotal")} <strong>{fmt(invoice.totalMinor)}</strong></span><span>{t("alreadyPaid")} <strong>{fmt(invoice.paidMinor)}</strong></span><span className="due-summary">{t("amountDue")} <strong>{fmt(due)}</strong></span></div>
     <form onSubmit={submit}><Field label={t("amount")}><input name="amount" inputMode="decimal" defaultValue={(due/100).toFixed(2)} required autoFocus/></Field><Field label={t("paymentMethod")}><select name="method"><option value="cash">{t("cash")}</option><option value="upi">UPI</option><option value="bank">{t("bank")}</option><option value="card">{t("card")}</option><option value="other">{t("other")}</option></select></Field><Field label={t("reference")}><input name="ref" maxLength={160}/></Field><Field label={t("note")}><input name="note" maxLength={1000}/></Field>
-      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("recordPayment")}</button></div>
+      {error&&<div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{t("cancel")}</button><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("recordPayment")}</button></div>
     </form></ModalFrame>;
 }
 
@@ -641,7 +675,7 @@ function InvoiceModal({invoice,settings,locale,fmt,onClose,onPay,onVoided}:{invo
       <div className="receipt-totals"><div><span>{t("subtotal")}</span><strong>{fmt(invoice.subtotalMinor)}</strong></div><div><span>{t("discount")}</span><strong>{fmt(invoice.discountMinor)}</strong></div><div><span>{t("taxAmount")}</span><strong>{fmt(invoice.taxMinor)}</strong></div><div className="receipt-grand"><span>{t("total")}</span><strong>{fmt(invoice.totalMinor)}</strong></div><div><span>{t("alreadyPaid")}</span><strong>{fmt(invoice.paidMinor)}</strong></div><div><span>{t("amountDue")}</span><strong>{fmt(invoice.totalMinor-invoice.paidMinor)}</strong></div></div>
       {invoice.notes&&<p className="receipt-note">{t("notes")}: {invoice.notes}</p>}<div className="receipt-foot">Thank you for your business.</div>
     </div>
-    {error&&<div className="form-error">{error}</div>}{showVoid&&<div className="void-box"><Field label={t("voidReason")}><input value={reason} onChange={e=>setReason(e.target.value)}/></Field><button className="danger-button" onClick={doVoid} disabled={busy}>{busy?"Saving…":t("confirmVoid")}</button></div>}
+    {error&&<div className="form-error">{error}</div>}{showVoid&&<div className="void-box"><Field label={t("voidReason")}><input value={reason} onChange={e=>setReason(e.target.value)}/></Field><button className="danger-button" onClick={doVoid} disabled={busy}>{busy?t("saving"):t("confirmVoid")}</button></div>}
     <div className="modal-actions print-actions"><button className="secondary-button" onClick={onClose}>{t("close")}</button>{invoice.status==="issued"&&invoice.totalMinor>invoice.paidMinor&&<button className="secondary-button" onClick={onPay}><Wallet size={15}/>{t("collectPayment")}</button>}{invoice.status==="issued"&&invoice.paidMinor===0&&<button className="danger-button" onClick={()=>setShowVoid(v=>!v)}>{t("void")}</button>}<button className="primary-button" onClick={()=>window.print()}><Printer size={15}/>{t("printBill")}</button></div>
   </ModalFrame>;
 }
@@ -663,6 +697,12 @@ function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSett
   const [file,setFile]=useState<File>();
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const [storage,setStorage]=useState<StorageStatus>();
+  useEffect(()=>{
+    let alive=true;
+    getStorageStatus().then(v=>{if(alive)setStorage(v);});
+    return()=>{alive=false;};
+  },[]);
 
   async function save(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
@@ -679,10 +719,10 @@ function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSett
       updatedAt:Date.now()
     };
     setError("");
-    if(!next.businessName||next.businessName.length>160){setError("Enter a business name up to 160 characters.");return;}
-    if(next.phone.length>40||next.address.length>1000||next.taxId.length>80){setError("Business details exceed the supported length.");return;}
-    if(!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(next.invoicePrefix)){setError("Invoice prefix must be 1–10 letters, numbers or hyphens.");return;}
-    if(!["INR","USD","EUR","GBP","AED"].includes(next.currencyCode)){setError("Select a supported currency.");return;}
+    if(!next.businessName||next.businessName.length>160){setError(t("businessNameInvalid"));return;}
+    if(next.phone.length>40||next.address.length>1000||next.taxId.length>80){setError(t("businessDetailsTooLong"));return;}
+    if(!/^[A-Z0-9][A-Z0-9-]{0,9}$/.test(next.invoicePrefix)){setError(t("invoicePrefixInvalid"));return;}
+    if(!["INR","USD","EUR","GBP","AED"].includes(next.currencyCode)){setError(t("currencyUnsupported"));return;}
 
     setBusy(true);
     try{
@@ -720,7 +760,7 @@ function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSett
       const blob=await createEncryptedBackup(password);
       downloadBlob(blob,"ainvoice-backup-"+todayISO()+".ainvoice-backup.json");
     }catch(err){
-      setError(err instanceof Error?err.message:"Backup failed.");
+      setError(err instanceof Error?err.message:t("backupFailed"));
     }finally{
       setBusy(false);
     }
@@ -728,7 +768,7 @@ function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSett
 
   async function restore(){
     if(busy)return;
-    if(!file){setError("Select a backup file.");return;}
+    if(!file){setError(t("selectBackupFile"));return;}
     if(!window.confirm(t("restoreWarning")))return;
     setError("");setBusy(true);
     try{
@@ -746,22 +786,25 @@ function SettingsPage({settings,events,t,onSaved,onRefresh}:{settings:DeviceSett
       setFile(undefined);
       onRefresh();
     }catch(err){
-      setError(err instanceof Error?err.message:"Restore failed.");
+      setError(err instanceof Error?err.message:t("restoreFailed"));
     }finally{
       setBusy(false);
     }
   }
 
-  return <section className="page-section narrow-section"><div className="page-heading compact"><div><div className="eyebrow">PREFERENCES</div><h1>{t("settings")}</h1><p>{t("businessDetails")}</p></div></div><div className="panel settings-panel">
+  return <section className="page-section narrow-section"><div className="page-heading compact"><div><div className="eyebrow">{t("eyebrowPreferences")}</div><h1>{t("settings")}</h1><p>{t("businessDetails")}</p></div></div><div className="panel settings-panel">
     <form onSubmit={save}><div className="settings-section-title">{t("businessDetails")}</div><Field label={t("businessName")}><input name="name" defaultValue={settings.businessName} required/></Field>
       <div className="form-grid-two"><Field label={t("businessPhone")}><input name="phone" defaultValue={settings.phone}/></Field><Field label={t("taxId")}><input name="tax" defaultValue={settings.taxId}/></Field></div>
       <Field label={t("businessAddress")}><textarea name="address" rows={2} defaultValue={settings.address}/></Field>
       <div className="form-grid-two"><Field label={t("currency")}><select name="currency" defaultValue={settings.currencyCode}><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — Pound Sterling</option><option value="AED">AED — Dirham</option></select></Field><Field label={t("invoicePrefix")}><input name="prefix" defaultValue={settings.invoicePrefix}/></Field></div>
-      <div className="modal-actions"><button type="submit" className="primary-button" disabled={busy}>{busy?"Saving…":t("saveSettings")}</button></div>
+      <div className="modal-actions"><button type="submit" className="primary-button" disabled={busy}>{busy?t("saving"):t("saveSettings")}</button></div>
     </form>
     <div className="settings-divider"/><div className="settings-section-title">{t("dataPrivacy")}</div><p className="settings-description">{t("secureBackup")}. {t("settingsSecurity")}</p>
+    {storage&&!isNativeApp()&&(storage.durability==="persisted"
+      ?<p className="settings-description" role="status">{t("storageProtected")}</p>
+      :<div className="settings-warning" role="status"><CircleHelp size={17}/><p>{t("storageUnprotected")}</p></div>)}
     <Field label={t("backupPassword")}><input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password"/></Field>
-    <div className="backup-actions"><button className="secondary-button" onClick={backup} disabled={busy}><Download size={15}/>{t("backupExport")}</button><label className={busy?"secondary-button file-picker disabled":"secondary-button file-picker"} aria-disabled={busy}><UploadIcon/><span>{t("chooseBackup")}</span><input type="file" accept=".json,application/json" disabled={busy} onChange={e=>setFile(e.target.files?.[0])}/></label><button className="primary-button" onClick={restore} disabled={busy||!file}>{busy?"Working…":t("restore")}</button></div>
+    <div className="backup-actions"><button className="secondary-button" onClick={backup} disabled={busy}><Download size={15}/>{t("backupExport")}</button><label className={busy?"secondary-button file-picker disabled":"secondary-button file-picker"} aria-disabled={busy}><UploadIcon/><span>{t("chooseBackup")}</span><input type="file" accept=".json,application/json" disabled={busy} onChange={e=>setFile(e.target.files?.[0])}/></label><button className="primary-button" onClick={restore} disabled={busy||!file}>{busy?t("working"):t("restore")}</button></div>
     {file&&<p className="settings-description">{file.name}</p>}<div className="settings-warning"><CircleHelp size={17}/><p>{t("restoreWarning")} {t("settingsSecurity")}</p></div>
     <div className="settings-divider"/><div className="settings-section-title">{t("recentActivity")}</div><p className="settings-description">{t("noCloud")} · {t("localData")}</p>{events.length===0?<p className="settings-description">{t("noActivity")}</p>:events.slice(0,8).map((event)=><div className="report-row" key={event.id}><span>{event.action}</span><strong>{event.summary}</strong><small>{dateLabel(event.createdAt)}</small></div>)}
   </div>{error&&<div className="form-error settings-error">{error}</div>}</section>;

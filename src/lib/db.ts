@@ -325,6 +325,21 @@ export class AInvoiceDatabase extends Dexie {
         settings.purchaseSequence = settings.purchaseSequence ?? 0;
       });
     });
+    // v6: the app lists invoices and purchases newest-first via orderBy("createdAt"),
+    // which Dexie rejects (SchemaError) unless createdAt is an index. Adding an
+    // index needs no data rewrite; IndexedDB builds it from existing rows.
+    this.version(6).stores({
+      invoices: "++id,&invoiceNo,dateISO,createdAt,customerName,customerId,paymentStatus,status",
+      settings: "id",
+      products: "++id,&sku,name,active,trackStock",
+      customers: "++id,name,phone,active",
+      payments: "++id,invoiceId,invoiceNo,customerId,paidAt,method",
+      suppliers: "++id,name,phone,active",
+      purchases: "++id,&purchaseNo,dateISO,createdAt,supplierName,supplierId,paymentStatus,status",
+      supplierPayments: "++id,purchaseId,purchaseNo,supplierId,paidAt,method",
+      stockMovements: "++id,productId,type,referenceType,referenceId,createdAt",
+      auditEvents: "++id,entityType,entityId,action,createdAt"
+    });
   }
 }
 
